@@ -133,14 +133,16 @@ namespace {
             unsigned Line = Loc.getLineNumber();
             StringRef File = Loc.getFilename();
             StringRef Dir = Loc.getDirectory();
-            if(File.str().compare(p1_input.fileName) == 0) {
-              if(Line == p1_input.lineNum && isa<LoadInst>(*I)) {
+            if(!getPart1 &&
+               (File.str().compare(p1_input.fileName) == 0)) {
+              if(Line == p1_input.lineNum) {
                 errs() << "Done mapping part1." << "\n";
                 //std::string tmp;
                 //llvm::raw_string_ostream rso(tmp);
                 //I->print(rso);
                 //errs() << tmp << "\n";
                 corruptedIR.insert(ins2int[&(*I)]);
+                getPart1 = true;
               }
             }
             if(!getPart2 &&
@@ -175,6 +177,8 @@ namespace {
       mapSourceToIR(M);
       // TODO : TEMPORARY HACK FOR REAL LIBSAFE
       //corruptedIR.insert(23);
+      // TODO : TEMPORARY HACK FOR REAL APACHE-25520
+      //corruptedIR.insert(1797);
 
       part1_getCorruptedIRs(M);
       part2_getDominantFrontiers(M);
