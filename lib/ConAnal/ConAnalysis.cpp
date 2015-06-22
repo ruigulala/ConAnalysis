@@ -143,12 +143,12 @@ namespace {
                 corruptedIR.insert(ins2int[&(*I)]);
               }
             }
-            if(!getPart2 && 
-               File.str().compare(p2_input.fileName) == 0) {
+            if(!getPart2 &&
+               (File.str().compare(p2_input.fileName) == 0)) {
               if(Line == p2_input.lineNum) {
                 getPart2 = true;
                 p2_input.danOpI = &*I;
-                errs() << "Done mapping part2" << "\n";
+                errs() << "Done mapping part2." << "\n";
               }
             }
           }
@@ -170,11 +170,12 @@ namespace {
       // Put dying into container
 
       mapInsToNum(M);
-      printMap(M);
+      //printMap(M);
       parseInput();
       mapSourceToIR(M);
       // TODO : TEMPORARY HACK FOR REAL LIBSAFE
-      corruptedIR.insert(23);
+      //corruptedIR.insert(23);
+
       part1_getCorruptedIRs(M);
       part2_getDominantFrontiers(M);
       part3_getFeasiblePath(M);
