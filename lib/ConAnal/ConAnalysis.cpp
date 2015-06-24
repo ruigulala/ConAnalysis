@@ -45,6 +45,7 @@ void ConAnalysis::printSet(std::set<BasicBlock *> inputSet) {
 }
 
 void ConAnalysis::parseInput() {
+  // TODO: Read callstack content from file to p1_input  
   // Read input from loc.txt
   std::ifstream ifs("loc.txt");
   std::vector<std::string> lines;
@@ -76,6 +77,7 @@ void ConAnalysis::parseInput() {
 }
 
 void ConAnalysis::mapSourceToIR(Module &M) {
+  // TODO: Map the callstack content in p1_input to callStack variable
   bool getPart1 = false;
   bool getPart2 = false;
   for(Module::iterator FuncIter = M.getFunctionList().begin();

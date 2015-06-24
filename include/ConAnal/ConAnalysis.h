@@ -43,6 +43,7 @@ typedef struct {
   char funcName[100];
   int lineNum;
   char varName[100];
+  // TODO: Add a container that stores the initial input of callStack
 } part1_input;
 
 typedef struct {
@@ -66,6 +67,8 @@ namespace ConAnal {
     std::set<int> dominantFrontiers;
     //std::set<Instruction *> feasiblePath;
     std::set<int> feasiblePath;
+    // TODO: Add a runtime callStack instance for analysis
+    //std::stack<pair<Function *, Instruction *> > callStack;
     
     public:
     static char ID; // Pass identification, replacement for typeid
