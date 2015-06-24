@@ -1,0 +1,53 @@
+8
+
+dir
+7
+file:///u/e/l/elder/public/svnrepo/llvm-projects/trunk/proj1/skel/lib/stroll
+file:///u/e/l/elder/public/svnrepo
+
+
+
+2009-08-11T20:39:41.028061Z
+2
+elder
+
+
+svn:special svn:externals svn:needs-lock
+
+
+
+
+
+
+
+
+
+
+
+9a1e54ef-108e-4857-8ab8-61f85bef59b9
+
+Stroll.cpp
+file
+12
+
+
+
+2009-08-14T21:08:07.000000Z
+e8b31d5027d9f9066eec992731636ef4
+2009-08-14T23:39:35.711766Z
+12
+horwitz
+
+Makefile
+file
+
+
+
+
+2009-08-11T20:54:39.000000Z
+6b0b126191fc98fff8e6af3461bbe8c0
+2009-08-11T20:39:41.028061Z
+2
+elder
+has-props
+

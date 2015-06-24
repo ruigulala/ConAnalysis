@@ -1,0 +1,44 @@
+8
+
+dir
+7
+file:///u/e/l/elder/public/svnrepo/llvm-projects/trunk/proj1/skel/lib
+file:///u/e/l/elder/public/svnrepo
+
+
+
+2009-08-11T20:39:41.028061Z
+2
+elder
+
+
+svn:special svn:externals svn:needs-lock
+
+
+
+
+
+
+
+
+
+
+
+9a1e54ef-108e-4857-8ab8-61f85bef59b9
+
+stroll
+dir
+
+Makefile
+file
+
+
+
+
+2009-08-11T20:54:39.000000Z
+cbbaf0675a1a8d1b667cf333fec9dad2
+2009-08-11T20:39:41.028061Z
+2
+elder
+has-props
+

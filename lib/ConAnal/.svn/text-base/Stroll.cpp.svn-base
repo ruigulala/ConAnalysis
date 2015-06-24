@@ -1,0 +1,64 @@
+//===----------------- Stroll.cpp - CFG Stroller for CS 701 ---------------===//
+//
+//                     The LLVM Compiler Infrastructure
+//
+// This file is distributed under the University of Illinois Open Source
+// License. See LICENSE.TXT for details.
+//
+//===----------------------------------------------------------------------===//
+//
+// This file is a skeleton of an implementation for "Strolling Down the
+// CFG" of Univ. Wisconsin-Madison's CS 701 Project 1.
+//
+//===----------------------------------------------------------------------===//
+
+#define DEBUG_TYPE "stroll"
+#include "llvm/Pass.h"
+#include "llvm/Module.h"
+#include "llvm/Function.h"
+#include "llvm/BasicBlock.h"
+#include "llvm/Instruction.h"
+#include "llvm/ADT/StringExtras.h"
+#include "llvm/ADT/Statistic.h"
+#include <iostream>
+#include <vector>
+using namespace llvm;
+
+STATISTIC(FunctionCount, "Number of functions");
+
+namespace {
+  class Stroll : public ModulePass {
+    public:
+    static char ID; // Pass identification, replacement for typeid
+    Stroll() : ModulePass(&ID) {}
+    
+    //**********************************************************************
+    // runOnModule
+    //**********************************************************************
+    virtual bool runOnModule(Module &M) {
+        return false;
+    }
+
+    //**********************************************************************
+    // print
+    //**********************************************************************
+    virtual void print(std::ostream &O, const Module *M) const {
+        O << "Hi, this is stroll.\n";
+    }
+
+    // We don't modify the program, so we preserve all analyses
+    virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+      AU.setPreservesAll();
+    };
+
+  };
+  char Stroll::ID = 0;
+
+  // register the stroll class: 
+  //  - give it a command-line argument (stroll)
+  //  - a name ("Getting familiar with LLVM")
+  //  - a flag saying that we don't modify the CFG
+  //  - a flag saying this is not an analysis pass
+  RegisterPass<Stroll> X("stroll", "Getting familiar with LLVM",
+                         true, false);
+}
