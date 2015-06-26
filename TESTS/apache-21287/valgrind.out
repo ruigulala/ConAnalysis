@@ -1,0 +1,24 @@
+==5017== This conflicts with a previous read of size 4 by thread #8
+==5017== Locks held: none
+==5017==    at 0x8065C37: decrement_refcount (mod_mem_cache.c:354)
+==5017==    by 0x40963FC: run_cleanups (apr_pools.c:1979)
+==5017==    by 0x409596F: apr_pool_destroy (apr_pools.c:755)
+==5017==    by 0x8071BDE: ap_process_http_connection (http_core.c:302)
+==5017==    by 0x809A130: ap_run_process_connection (connection.c:85)
+==5017==    by 0x809A49D: ap_process_connection (connection.c:211)
+==5017==    by 0x808ABA4: process_socket (worker.c:632)
+==5017==    by 0x808B2E1: worker_thread (worker.c:947)
+==5017==  Address 0x4666bf4 is 140 bytes inside a block of size 144 alloc'd
+==5017==    at 0x402AE9E: calloc (vg_replace_malloc.c:623)
+==5017==    by 0x8065ECE: create_entity (mod_mem_cache.c:490)
+==5017==    by 0x806464E: cache_run_create_entity (cache_storage.c:306)
+==5017==    by 0x8064125: cache_create_entity (cache_storage.c:128)
+==5017==    by 0x806370B: cache_in_filter (mod_cache.c:669)
+==5017==    by 0x809C4FB: ap_pass_brigade (util_filter.c:550)
+==5017==    by 0x809F20D: ap_old_write_filter (protocol.c:1321)
+==5017==    by 0x809C4FB: ap_pass_brigade (util_filter.c:550)
+==5017==    by 0x4A5E003: php_handler (sapi_apache2.c:646)
+==5017==    by 0x808E06E: ap_run_handler (config.c:194)
+==5017==    by 0x808E7E2: ap_invoke_handler (config.c:401)
+==5017==    by 0x8077356: ap_process_request (http_request.c:288)
+==5017==  Block was alloc'd by thread #8
