@@ -56,75 +56,72 @@ typedef struct {
 
 namespace ConAnal {
   class ConAnalysis : public ModulePass {
-    private:
-    part2_input p2_input;
-
-    std::map<Instruction *, int> ins2int;
-    uint64_t ins_count = 1;
-    /// <fileName, lineNum> -> list<Instruction *>
-    std::map<std::pair<std::string, uint32_t>, 
-             std::list<Instruction *>> sourceToIRMap;
-    //std::set<Instruction *> corruptedIR;
-    std::set<uint64_t> corruptedIR;
-    //std::set<Instruction *> dominantFrontiers;
-    std::set<uint64_t> dominantFrontiers;
-    //std::set<Instruction *> feasiblePath;
-    std::set<uint64_t> feasiblePath;
-    std::stack<std::pair<Function *, Instruction *> > callStack;
-    
     public:
-    static char ID; // Pass identification, replacement for typeid
-    ConAnalysis() : ModulePass(ID) {
-    }
+      static char ID; // Pass identification, replacement for typeid
+      ConAnalysis() : ModulePass(ID) {
+      }
 
-    ///
-    void printSet(std::set<uint64_t> &inputSet);
-    ///
-    void printSet(std::set<BasicBlock *> &inputSet);
-    /// This method reads the initial value of callstack from 
-    /// the associated file that belongs to each part of the analysis.
-    void parseInput(std::string inputFile, CallStackInput &csInput);
-    /// This method intialize the call stack for our analysis
-    void initializeCallStack(CallStackInput &csInput);
-    ///
-    virtual bool runOnModule(Module &M);
-    /// This method create two maps.
-    /// The first map is:
-    /// Instruction -> Number
-    /// The second map is:
-    /// <FileName, lineNum> -> Instruction
-    virtual bool createMaps(Module &M);
-    ///
-    virtual bool printMap(Module &M);
-    /// 
-    virtual bool part1_getCorruptedIRs(Module &M);
-    ///
-    virtual bool part2_getDominantFrontiers(Module &M);
-    ///
-    virtual bool part3_getFeasiblePath(Module &M);
-    ///
-    void computeDominators(Function &F, std::map<BasicBlock *,
+      ///
+      void printSet(std::set<uint64_t> &inputset);
+      ///
+      void printSet(std::set<BasicBlock *> &inputset);
+      /// This method reads the initial value of callstack from 
+      /// the associated file that belongs to each part of the analysis.
+      void parseInput(std::string inputfile, CallStackInput &csinput);
+      /// This method intialize the call stack for our analysis
+      void initializeCallStack(CallStackInput &csInput);
+      ///
+      virtual bool runOnModule(Module &M);
+      /// This method create two maps.
+      /// The first map is:
+      /// Instruction -> Number
+      /// The second map is:
+      /// <FileName, lineNum> -> Instruction
+      virtual bool createMaps(Module &M);
+      ///
+      virtual bool printMap(Module &M);
+      /// 
+      virtual bool part1_getCorruptedIRs(Module &M);
+      ///
+      virtual bool part2_getDominantFrontiers(Module &M);
+      ///
+      virtual bool part3_getFeasiblePath(Module &M);
+      ///
+      void computeDominators(Function &F, std::map<BasicBlock *,
+                             std::set<BasicBlock *>> & dominators);
+      ///
+      void printDominators(Function &F, std::map<BasicBlock *,
                            std::set<BasicBlock *>> & dominators);
-    ///
-    void printDominators(Function &F, std::map<BasicBlock *,
-                         std::set<BasicBlock *>> & dominators);
 
-    //**********************************************************************
-    // print (do not change this method)
-    //
-    // If this pass is run with -f -analyze, this method will be called
-    // after each call to runOnModule.
-    //**********************************************************************
-    virtual void print(std::ostream &O, const Module *M) const;
+      //**********************************************************************
+      // print (do not change this method)
+      //
+      // If this pass is run with -f -analyze, this method will be called
+      // after each call to runOnModule.
+      //**********************************************************************
+      virtual void print(std::ostream &O, const Module *M) const;
 
-    //**********************************************************************
-    // getAnalysisUsage
-    //**********************************************************************
+      //**********************************************************************
+      // getAnalysisUsage
+      //**********************************************************************
 
-    // We don't modify the program, so we preserve all analyses
-    virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-      AU.setPreservesAll();
-    };
+      // We don't modify the program, so we preserve all analyses
+      virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+        AU.setPreservesAll();
+      };
+    private:
+      std::map<Instruction *, int> ins2int_;
+      uint64_t ins_count_ = 1;
+      /// <fileName, lineNum> -> list<Instruction *>
+      std::map<std::pair<std::string, uint32_t>, 
+               std::list<Instruction *>> sourcetoIRmap_;
+      //std::set<Instruction *> corruptedIR;
+      std::set<uint64_t> corruptedIR_;
+      //std::set<Instruction *> dominantFrontiers;
+      std::set<uint64_t> dominantfrontiers_;
+      //std::set<Instruction *> feasiblePath;
+      std::set<uint64_t> feasiblepath_;
+      std::stack<std::pair<Function *, Instruction *>> callstack_;
   };
 }
 
