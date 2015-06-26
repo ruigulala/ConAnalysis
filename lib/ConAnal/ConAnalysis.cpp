@@ -22,102 +22,98 @@ using namespace llvm;
 using namespace ConAnal;
 
 
-void ConAnalysis::printSet(std::set<int> &inputSet) {
-  std::set<int>::iterator iter;
+void ConAnalysis::printSet(std::set<uint64_t> &inputSet) {
   errs() << "[ ";
-  for(iter=inputSet.begin(); iter!=inputSet.end(); ++iter) {
-    errs() << *iter << " ";
-  }
+  for (auto iter : inputSet)
+    errs() << iter << " "; 
   errs() << "]\n";
 }
 
-void ConAnalysis::printSet(std::set<BasicBlock *> inputSet) {
+void ConAnalysis::printSet(std::set<BasicBlock *> &inputSet) {
   std::list<std::string> tmpList;
-  for(std::set<BasicBlock *>::iterator it = inputSet.begin();
-      it != inputSet.end(); ++it) {
-    tmpList.push_back((*it)->getName().str());
+  for (auto it : inputSet) {
+    tmpList.push_back(it->getName().str());
   }
   tmpList.sort();
-  for(std::list<std::string>::iterator it = tmpList.begin();
-      it != tmpList.end(); ++it) {
-    errs() << *it << " ";
+  for (auto it : tmpList) {
+    errs() << it << " ";
   }
 }
 
-void ConAnalysis::parseInput() {
-  // TODO: Read callstack content from file to p1_input  
-  // Read input from loc.txt
-  std::ifstream ifs("loc.txt");
-  std::vector<std::string> lines;
+void ConAnalysis::parseInput(std::string inputFile, CallStackInput &csInput) {
+
+  std::ifstream ifs(inputFile);
 
   std::string line;
-  std::getline(ifs, line);
-  sscanf(line.c_str()," %s %s %d %s\n", p1_input.fileName,
-         p1_input.funcName,
-         &p1_input.lineNum,
-         p1_input.varName);
-  line.clear();
-  std::getline(ifs, line);
-  sscanf(line.c_str()," %s %s %d\n", p2_input.fileName,
-         p2_input.funcName,
-         &p2_input.lineNum);
-
   errs() << "Replaying input:\n";
-  errs() << "Part 1:\n";
-  errs() << "Filename:" << p1_input.fileName << "\n";
-  errs() << "FuncName:" << p1_input.funcName << "\n";
-  errs() << "LineNum:" << p1_input.lineNum << "\n\n";
-  errs() << "VarName:" << p1_input.varName << "\n";
-
-  errs() << "Part 2:\n";
-  errs() << "Filename:" << p2_input.fileName << "\n";
-  errs() << "FuncName:" << p2_input.funcName << "\n";
-  errs() << "LineNum:" << p2_input.lineNum << "\n\n";
-
+  errs() << "Read from file " << inputFile << "\n";
+  while (std::getline(ifs, line)) {
+    char fileName[300];
+    char funcName[300];
+    uint32_t lineNum;
+    sscanf(line.c_str(),"%s (%[^ :]:%u)\n", funcName, fileName, &lineNum);
+    std::string s1(fileName), s2(funcName);
+    csInput.push_front(std::make_tuple(s1, s2, lineNum));
+    errs() << "Funcname:" << s2 << "\n";
+    errs() << "FileName:" << s1 << "\n";
+    errs() << "LineNum:" << lineNum << "\n\n";
+    line.clear();
+  }
 }
 
-void ConAnalysis::mapSourceToIR(Module &M) {
-  // TODO: Map the callstack content in p1_input to callStack variable
-  bool getPart1 = false;
-  bool getPart2 = false;
-  for(Module::iterator FuncIter = M.getFunctionList().begin();
-      FuncIter != M.getFunctionList().end(); FuncIter++) {
-    Function *F = FuncIter;
-    for(inst_iterator I = inst_begin(F), E = inst_end(F); 
-        I != E; ++I) {
-      if(MDNode *N = I->getMetadata("dbg")) {
-        DILocation Loc(N);
-        unsigned Line = Loc.getLineNumber();
-        StringRef File = Loc.getFilename();
-        StringRef Dir = Loc.getDirectory();
-        if(!getPart1 &&
-           (File.str().compare(p1_input.fileName) == 0)) {
-          if(Line == p1_input.lineNum) {
-            errs() << "Done mapping part1." << "\n";
-            //std::string tmp;
-            //llvm::raw_string_ostream rso(tmp);
-            //I->print(rso);
-            //errs() << tmp << "\n";
-            corruptedIR.insert(ins2int[&(*I)]);
-            getPart1 = true;
-          }
-        }
-        if(!getPart2 &&
-           (File.str().compare(p2_input.fileName) == 0)) {
-          if(Line == p2_input.lineNum) {
-            getPart2 = true;
-            p2_input.danOpI = &*I;
-            errs() << "Done mapping part2." << "\n";
-          }
+void ConAnalysis::initializeCallStack(CallStackInput &csInput) {
+  errs() << "\nInitializing call stack\n";
+  //for(auto it = sourceToIRMap.begin(); it != sourceToIRMap.end(); ++it) {
+    //errs() << std::get<0>(it->first) << " " << std::get<1>(it->first) << "\n";
+  //}
+  for (auto cs_it = csInput.begin(); cs_it != csInput.end(); ++cs_it) {
+    std::string filename = std::get<0>(*cs_it);
+    uint32_t line = std::get<2>(*cs_it);
+    auto mapItr = sourceToIRMap.find(std::make_pair(filename, line));
+    if (mapItr == sourceToIRMap.end()) {
+      errs() << "ERROR: <" << std::get<0>(*cs_it) << " " 
+             << std::get<2>(*cs_it) << ">"
+             << " sourceToIRMap look up failed.\n";
+      abort();
+    }
+    std::list<Instruction *>& insList = mapItr->second;
+    if (insList.begin() == insList.end()) {
+      errs() << "ERROR: <" << std::get<0>(*cs_it) << " " 
+             << std::get<2>(*cs_it) << ">"
+             << " No matching instructions.\n";
+      abort();
+    }
+    for (auto listIt = insList.begin(); listIt != insList.end(); ++listIt) {
+      (*listIt)->print(errs());
+      errs() << "\n";
+      if (std::next(cs_it, 1) == csInput.end()) {
+        Function * func = &*(((*listIt)->getParent())->getParent());
+        errs() << func->getName() << "\n";
+        callStack.push(std::make_pair(&*func, *listIt));
+        break;
+      } else {
+        if (isa<CallInst>(*listIt) || isa<InvokeInst>(*listIt)) {
+          Function * func = &*(((*listIt)->getParent())->getParent());
+          errs() << func->getName() << "\n";
+          callStack.push(std::make_pair(&*func, *listIt));
+          break;
+        } else {
+          
         }
       }
     }
+    errs() << "\n";
   }
   return;
 }
 
 bool ConAnalysis::runOnModule(Module &M) {
 
+  CallStackInput p1_input, p2_input;
+
+  errs() << "---------------------------------------\n";
+  errs() << "             ConAnalysis               \n";
+  errs() << "---------------------------------------\n";
   //CallGraph CG = CallGraph(M);
   //for (CallGraph::const_iterator I = CG.begin(), E = CG.end(); I != E; ++I) {
     //errs() << "  CS<" << (I->first)->getName() << "> calls ";
@@ -128,58 +124,69 @@ bool ConAnalysis::runOnModule(Module &M) {
   //}
   // Put dying into container
 
-  mapInsToNum(M);
+  createMaps(M);
   //printMap(M);
-  parseInput();
-  mapSourceToIR(M);
+  parseInput("part1_loc.txt", p1_input);
+  initializeCallStack(p1_input);
+  
   // TODO : TEMPORARY HACK FOR REAL LIBSAFE
   //corruptedIR.insert(23);
   // TODO : TEMPORARY HACK FOR REAL APACHE-25520
-  corruptedIR.insert(1841);
+  //corruptedIR.insert(1841);
 
-  part1_getCorruptedIRs(M);
-  part2_getDominantFrontiers(M);
-  part3_getFeasiblePath(M);
+  //part1_getCorruptedIRs(M);
+  
+  
+  //parseInput("part2_loc.txt", p2_input);
+  //part2_getDominantFrontiers(M);
+  //part3_getFeasiblePath(M);
 
   return false;
 }
 
-bool ConAnalysis::mapInsToNum(Module &M) {
-  for(Module::iterator FuncIter = M.getFunctionList().begin();
+bool ConAnalysis::createMaps(Module &M) {
+  for (auto FuncIter = M.getFunctionList().begin();
       FuncIter != M.getFunctionList().end(); FuncIter++) {
     Function *F = FuncIter;
-    for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
+    for (auto I = inst_begin(F), E = inst_end(F); I != E; ++I) {
       ins2int[&(*I)] = ins_count++;
+      if (MDNode *N = I->getMetadata("dbg")) {
+        DILocation Loc(N);
+        uint32_t Line = Loc.getLineNumber();
+        StringRef File = Loc.getFilename();
+        sourceToIRMap[std::make_pair(File.str(), Line)].push_back(&*I);
+      } else {
+        if (isa<PHINode>(&*I) || isa<AllocaInst>(&*I) || isa<BranchInst>(&*I)) {
+
+        } else if (isa<CallInst>(&*I) || isa<InvokeInst>(&*I)) {
+
+        }
+      }
     }
   }
   return false;
 }
 
 bool ConAnalysis::printMap(Module &M) {
-  for(Module::iterator FuncIter = M.getFunctionList().begin();
+  for (auto FuncIter = M.getFunctionList().begin();
       FuncIter != M.getFunctionList().end(); FuncIter++) {
     Function *F = FuncIter;
     std::cerr << "\nFUNCTION " << F->getName().str() << "\n";
   
-    for(Function::iterator blk = F->begin(), blk_end = F->end();
-         blk != blk_end; ++blk)
-    {
+    for (auto blk = F->begin(); blk != F->end(); ++blk) {
       errs() << "\nBASIC BLOCK " << blk->getName() << "\n";
-      for(BasicBlock::iterator i = blk->begin(), e = blk->end(); 
-           i != e; ++i) {
+      for (auto i = blk->begin(); i != blk->end(); ++i) {
         errs() << "%" << ins2int[i] << ":\t";
         errs() << Instruction::getOpcodeName(i->getOpcode()) << "\t";
-        for(int operand_i = 0, operand_num = i->getNumOperands(); 
-            operand_i < operand_num; operand_i++)
-        {
-          Value * v = i->getOperand(operand_i);
+        for (int op_i = 0; op_i < i->getNumOperands(); op_i++) {
+          Value * v = i->getOperand(op_i);
           if (isa<Instruction>(v)) {
             errs() << "%" << ins2int[cast<Instruction>(v)] << " ";
-          }
-          else if(v->hasName())
+          } else if (v->hasName()) {
             errs() << v->getName() << " ";
-          else
+          } else {
             errs() << "XXX ";
+          }
         }
         errs() << "\n";
       }
@@ -189,23 +196,22 @@ bool ConAnalysis::printMap(Module &M) {
 }
 
 bool ConAnalysis::part1_getCorruptedIRs(Module &M) {
-  for(Module::iterator FuncIter = M.getFunctionList().begin();
+  for (auto FuncIter = M.getFunctionList().begin();
       FuncIter != M.getFunctionList().end(); FuncIter++) {
     Function *F = FuncIter;
-    if(F->getName().str().compare(p1_input.funcName) != 0)
-      continue;
+    //if(F->getName().str().compare(p1_input.funcName) != 0)
+    //continue;
     //errs() << "------------Function Name :" << F->getName() << "-----\n";
-    for(inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
-      for(int op_i = 0, op_num = I->getNumOperands();
+    for (auto I = inst_begin(F), E = inst_end(F); I != E; ++I) {
+      for (int op_i = 0, op_num = I->getNumOperands();
           op_i < op_num; op_i++) {
         Value * v = I->getOperand(op_i);
         if (isa<Instruction>(v)) {
-          if(corruptedIR.count(ins2int[cast<Instruction>(v)])) {
+          if (corruptedIR.count(ins2int[cast<Instruction>(v)])) {
             corruptedIR.insert(ins2int[&*I]);
             continue;
           }
-        }
-        else if (v->hasName()) {
+        } else if (v->hasName()) {
           //errs() << v->getName() << " ";
         } else {
           //errs() << "XXX ";
@@ -220,21 +226,19 @@ bool ConAnalysis::part1_getCorruptedIRs(Module &M) {
 
 bool ConAnalysis::part2_getDominantFrontiers(Module &M) {
 
-  for(Module::iterator FuncIter = M.getFunctionList().begin();
+  for (auto FuncIter = M.getFunctionList().begin();
       FuncIter != M.getFunctionList().end(); FuncIter++) {
     Function *F = FuncIter;
-    std::map<BasicBlock *, std::set<BasicBlock *> > dominators;
-    if(F->getName().str().compare(p2_input.funcName) == 0) {
+    std::map<BasicBlock *, std::set<BasicBlock *>> dominators;
+    if (F->getName().str().compare(p2_input.funcName) == 0) {
       computeDominators(*F, dominators);
       //printDominators(*F, dominators);
-      std::set<BasicBlock *>::iterator it, it_end;
-      it = dominators[(p2_input.danOpI)->getParent()].begin();
-      it_end = dominators[(p2_input.danOpI)->getParent()].end();
-      for(; it != it_end; ++it) {
-        for(BasicBlock::iterator i = (*it)->begin(), 
-            e = (*it)->end(); i != e; ++i) {
+      auto it = dominators[(p2_input.danOpI)->getParent()].begin();
+      auto it_end = dominators[(p2_input.danOpI)->getParent()].end();
+      for (; it != it_end; ++it) {
+        for (auto i = (*it)->begin(); i != (*it)->end(); ++i) {
           dominantFrontiers.insert(ins2int[i]);  
-          if(&*i == p2_input.danOpI)
+          if (&*i == p2_input.danOpI)
             break;
         }
       }
@@ -257,61 +261,57 @@ bool ConAnalysis::part3_getFeasiblePath(Module &M) {
   return false;
 }
 
+// TODO: Change to C++11
 void ConAnalysis::computeDominators(Function &F, std::map<BasicBlock *,
-                       std::set<BasicBlock *> > & dominators) {
+                       std::set<BasicBlock *>> & dominators) {
   std::vector<BasicBlock *> worklist;
   // For all the nodes but N0, initially set dom(N) = {all nodes}
-  Function::iterator entry = F.begin();
-  for(Function::iterator blk = F.begin(), blk_end = F.end(); 
-      blk != blk_end; blk++) {
-    if(blk != F.begin()) {
-      if(pred_begin(blk) != pred_end(blk)) {
-        for(Function::iterator blk_p = F.begin(), blk_p_end = F.end();
-            blk_p != blk_p_end; ++blk_p) {
+  auto entry = F.begin();
+  for (auto blk = F.begin(); blk != F.end(); blk++) {
+    if (blk != F.begin()) {
+      if (pred_begin(blk) != pred_end(blk)) {
+        for (auto blk_p = F.begin(); blk_p != F.end(); ++blk_p) {
           dominators[&*blk].insert(&*blk_p);
         }
-      }
-      else
+      } else {
         dominators[&*blk].insert(&*blk);
+      }
     }
   }
   // dom(N0) = {N0} where N0 is the start node
   dominators[entry].insert(&*entry);
   // Push each node but N0 onto the worklist
-  for(succ_iterator SI = succ_begin(entry), E = succ_end(entry); 
-      SI != E; ++SI) {
+  for (auto SI = succ_begin(entry), E = succ_end(entry); SI != E; ++SI) {
     worklist.push_back(*SI);
   }
   // Use the worklist algorithm to compute dominators
-  while(!worklist.empty()) {
+  while (!worklist.empty()) {
     BasicBlock * Z = worklist.front();
     worklist.erase(worklist.begin());
 
     std::set<BasicBlock *> intersects = dominators[*pred_begin(Z)];
 
-    for(pred_iterator PI = pred_begin(Z), E = pred_end(Z); 
+    for (auto PI = pred_begin(Z), E = pred_end(Z); 
         PI != E; ++PI) {
-      std::set<BasicBlock *>::iterator dom_it, dom_end;
       std::set<BasicBlock *> newDoms;
-      for(dom_it = dominators[*PI].begin(), 
+      for (auto dom_it = dominators[*PI].begin(), 
           dom_end = dominators[*PI].end();
           dom_it != dom_end; dom_it++) {
-        if(intersects.count(*dom_it))
+        if (intersects.count(*dom_it))
           newDoms.insert(*dom_it);
       }
       intersects = newDoms;
     }
     intersects.insert(Z);
 
-    if(dominators[Z] != intersects) {
+    if (dominators[Z] != intersects) {
       dominators[Z] = intersects;
 
-      for(succ_iterator SI = succ_begin(Z), E = succ_end(Z);
-          SI != E; ++SI) {
-        if(*SI == entry)
+      for (auto SI = succ_begin(Z), E = succ_end(Z); SI != E; ++SI) {
+        if (*SI == entry) {
           continue;
-        else if(std::find(worklist.begin(),
-                          worklist.end(), *SI) == worklist.end()) {
+        } else if(std::find(worklist.begin(),
+                            worklist.end(), *SI) == worklist.end()) {
           worklist.push_back(*SI);
         }
       }
@@ -320,15 +320,14 @@ void ConAnalysis::computeDominators(Function &F, std::map<BasicBlock *,
 }
 
 void ConAnalysis::printDominators(Function &F, std::map<BasicBlock *,
-                     std::set<BasicBlock *> > & dominators) {
+                     std::set<BasicBlock *>> & dominators) {
   errs() << "\nFUNCTION " << F.getName() << "\n";
-  for(Function::iterator blk = F.begin(), blk_end = F.end();
-      blk != blk_end; ++blk) {
+  for (auto blk = F.begin(); blk != F.end(); ++blk) {
     errs() << "BASIC BLOCK " << blk->getName() << " DOM-Before: { ";
     dominators[&*blk].erase(&*blk);
     printSet(dominators[&*blk]);
     errs() << "}  DOM-After: { ";
-    if(pred_begin(blk) != pred_end(blk) || blk == F.begin()) {
+    if (pred_begin(blk) != pred_end(blk) || blk == F.begin()) {
       dominators[&*blk].insert(&*blk);
     }
     printSet(dominators[&*blk]);
@@ -340,12 +339,11 @@ void ConAnalysis::printDominators(Function &F, std::map<BasicBlock *,
 // print (do not change this method)
 //
 // If this pass is run with -f -analyze, this method will be called
-// after each call to runOnFunction.
+// after each call to runOnModule.
 //**********************************************************************
 void ConAnalysis::print(std::ostream &O, const Module *M) const {
     O << "This is Concurrency Bug Analysis.\n";
 }
-
 
 char ConAnalysis::ID = 0;
 
@@ -354,5 +352,6 @@ char ConAnalysis::ID = 0;
 //  - a name ("Concurrency Bug Analysis")
 //  - a flag saying that we don't modify the CFG
 //  - a flag saying this is not an analysis pass
-static RegisterPass<ConAnalysis> X("ConAnalysis", "concurrency bug analysis code",
-       true, false);
+static RegisterPass<ConAnalysis> X("ConAnalysis", 
+                                   "concurrency bug analysis code",
+                                    true, false);

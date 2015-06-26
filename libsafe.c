@@ -15,7 +15,7 @@ void _libsafe_die ( void *ptr )
   sleep(1); 
   
   dying = 0;
-  pthread_exit(0);
+  abort();
 }
 
 void _libsafe_stackVariableP (void *ptr)

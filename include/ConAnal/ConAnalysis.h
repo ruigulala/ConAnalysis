@@ -30,21 +30,22 @@
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
-#include <iostream>
+#include <cstdint>
 #include <fstream>
+#include <iostream>
 #include <list>
 #include <set>
+#include <sstream>
+#include <stack>
+#include <string>
+#include <tuple>
+#include <utility>
 #include <vector>
 
 using namespace llvm;
 
-typedef struct {
-  char fileName[200];
-  char funcName[100];
-  int lineNum;
-  char varName[100];
-  // TODO: Add a container that stores the initial input of callStack
-} part1_input;
+/* <functionName, fileName, lineNum> */
+typedef std::list<std::tuple<std::string, std::string, uint32_t>> CallStackInput;
 
 typedef struct {
   char fileName[200];
@@ -56,19 +57,20 @@ typedef struct {
 namespace ConAnal {
   class ConAnalysis : public ModulePass {
     private:
-    part1_input p1_input;
     part2_input p2_input;
 
     std::map<Instruction *, int> ins2int;
-    int ins_count = 1;
+    uint64_t ins_count = 1;
+    /// <fileName, lineNum> -> list<Instruction *>
+    std::map<std::pair<std::string, uint32_t>, 
+             std::list<Instruction *>> sourceToIRMap;
     //std::set<Instruction *> corruptedIR;
-    std::set<int> corruptedIR;
+    std::set<uint64_t> corruptedIR;
     //std::set<Instruction *> dominantFrontiers;
-    std::set<int> dominantFrontiers;
+    std::set<uint64_t> dominantFrontiers;
     //std::set<Instruction *> feasiblePath;
-    std::set<int> feasiblePath;
-    // TODO: Add a runtime callStack instance for analysis
-    //std::stack<pair<Function *, Instruction *> > callStack;
+    std::set<uint64_t> feasiblePath;
+    std::stack<std::pair<Function *, Instruction *> > callStack;
     
     public:
     static char ID; // Pass identification, replacement for typeid
@@ -76,17 +78,22 @@ namespace ConAnal {
     }
 
     ///
-    void printSet(std::set<int> &inputSet);
+    void printSet(std::set<uint64_t> &inputSet);
     ///
-    void printSet(std::set<BasicBlock *> inputSet);
-    ///
-    void parseInput();
-    ///
-    void mapSourceToIR(Module &M);
+    void printSet(std::set<BasicBlock *> &inputSet);
+    /// This method reads the initial value of callstack from 
+    /// the associated file that belongs to each part of the analysis.
+    void parseInput(std::string inputFile, CallStackInput &csInput);
+    /// This method intialize the call stack for our analysis
+    void initializeCallStack(CallStackInput &csInput);
     ///
     virtual bool runOnModule(Module &M);
-    ///
-    virtual bool mapInsToNum(Module &M);
+    /// This method create two maps.
+    /// The first map is:
+    /// Instruction -> Number
+    /// The second map is:
+    /// <FileName, lineNum> -> Instruction
+    virtual bool createMaps(Module &M);
     ///
     virtual bool printMap(Module &M);
     /// 
@@ -97,16 +104,16 @@ namespace ConAnal {
     virtual bool part3_getFeasiblePath(Module &M);
     ///
     void computeDominators(Function &F, std::map<BasicBlock *,
-                           std::set<BasicBlock *> > & dominators);
+                           std::set<BasicBlock *>> & dominators);
     ///
     void printDominators(Function &F, std::map<BasicBlock *,
-                         std::set<BasicBlock *> > & dominators);
+                         std::set<BasicBlock *>> & dominators);
 
     //**********************************************************************
     // print (do not change this method)
     //
     // If this pass is run with -f -analyze, this method will be called
-    // after each call to runOnFunction.
+    // after each call to runOnModule.
     //**********************************************************************
     virtual void print(std::ostream &O, const Module *M) const;
 
@@ -118,7 +125,6 @@ namespace ConAnal {
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.setPreservesAll();
     };
-
   };
 }
 
