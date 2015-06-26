@@ -24,18 +24,18 @@ using namespace ConAnal;
 
 void ConAnalysis::printSet(std::set<uint64_t> &inputset) {
   errs() << "[ ";
-  for (auto iter : inputset)
+  for (auto& iter : inputset)
     errs() << iter << " "; 
   errs() << "]\n";
 }
 
 void ConAnalysis::printSet(std::set<BasicBlock *> &inputset) {
   std::list<std::string> tmplist;
-  for (auto it : inputset) {
+  for (auto& it : inputset) {
     tmplist.push_back(it->getName().str());
   }
   tmplist.sort();
-  for (auto it : tmplist) {
+  for (auto& it : tmplist) {
     errs() << it << " ";
   }
 }
