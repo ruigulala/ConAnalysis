@@ -1,3 +1,18 @@
+==5017== Possible data race during write of size 4 at 0x4666BF4 by thread #9
+==5017== Locks held: 1, at address 0x43C0534
+==5017==    at 0x80662D7: remove_entity (mod_mem_cache.c:653)
+==5017==    by 0x806416E: cache_remove_entity (cache_storage.c:153)
+==5017==    by 0x80636F4: cache_in_filter (mod_cache.c:668)
+==5017==    by 0x809C4FB: ap_pass_brigade (util_filter.c:550)
+==5017==    by 0x809F20D: ap_old_write_filter (protocol.c:1321)
+==5017==    by 0x809C4FB: ap_pass_brigade (util_filter.c:550)
+==5017==    by 0x4A5E003: php_handler (sapi_apache2.c:646)
+==5017==    by 0x808E06E: ap_run_handler (config.c:194)
+==5017==    by 0x808E7E2: ap_invoke_handler (config.c:401)
+==5017==    by 0x8077356: ap_process_request (http_request.c:288)
+==5017==    by 0x8071B77: ap_process_http_connection (http_core.c:293)
+==5017==    by 0x809A130: ap_run_process_connection (connection.c:85)
+==5017==
 ==5017== This conflicts with a previous read of size 4 by thread #8
 ==5017== Locks held: none
 ==5017==    at 0x8065C37: decrement_refcount (mod_mem_cache.c:354)
