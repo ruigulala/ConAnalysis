@@ -41,9 +41,7 @@ void ConAnalysis::printSet(std::set<BasicBlock *> &inputset) {
 }
 
 void ConAnalysis::parseInput(std::string inputfile, CallStackInput &csinput) {
-
   std::ifstream ifs(inputfile);
-
   std::string line;
   errs() << "Replaying input:\n";
   errs() << "Read from file " << inputfile << "\n";
@@ -51,7 +49,7 @@ void ConAnalysis::parseInput(std::string inputfile, CallStackInput &csinput) {
     char fileName[300];
     char funcName[300];
     uint32_t lineNum;
-    sscanf(line.c_str(),"%s (%[^ :]:%u)\n", funcName, fileName, &lineNum);
+    sscanf(line.c_str(), "%s (%[^ :]:%u)\n", funcName, fileName, &lineNum);
     std::string s1(fileName), s2(funcName);
     csinput.push_front(std::make_tuple(s1, s2, lineNum));
     errs() << "Funcname:" << s2 << "\n";
@@ -62,10 +60,9 @@ void ConAnalysis::parseInput(std::string inputfile, CallStackInput &csinput) {
 }
 
 void ConAnalysis::initializeCallStack(CallStackInput &csinput) {
-  errs() << "\nInitializing call stack\n";
-  //for(auto it = sourceToIRMap.begin(); it != sourceToIRMap.end(); ++it) {
-    //errs() << std::get<0>(it->first) << " " << std::get<1>(it->first) << "\n";
-  //}
+  errs() << "---------------------------------------\n";
+  errs() << "       Initializing call stack.\n";
+  errs() << "---------------------------------------\n";
   for (auto cs_it = csinput.begin(); cs_it != csinput.end(); ++cs_it) {
     std::string filename = std::get<0>(*cs_it);
     uint32_t line = std::get<2>(*cs_it);
@@ -108,9 +105,7 @@ void ConAnalysis::initializeCallStack(CallStackInput &csinput) {
 }
 
 bool ConAnalysis::runOnModule(Module &M) {
-
   CallStackInput p1_input, p2_input;
-
   errs() << "---------------------------------------\n";
   errs() << "             ConAnalysis               \n";
   errs() << "---------------------------------------\n";
@@ -123,20 +118,15 @@ bool ConAnalysis::runOnModule(Module &M) {
       //errs() << "external node\n";
   //}
   // Put dying into container
-
   createMaps(M);
   //printMap(M);
   parseInput("part1_loc.txt", p1_input);
   initializeCallStack(p1_input);
-  
   // TODO : TEMPORARY HACK FOR REAL LIBSAFE
   //corruptedIR.insert(23);
   // TODO : TEMPORARY HACK FOR REAL APACHE-25520
   //corruptedIR.insert(1841);
-
-  //part1_getCorruptedIRs(M);
-  
-  
+  part1_getCorruptedIRs(M);
   //parseInput("part2_loc.txt", p2_input);
   //part2_getDominantFrontiers(M);
   //part3_getFeasiblePath(M);
@@ -157,9 +147,7 @@ bool ConAnalysis::createMaps(Module &M) {
         sourcetoIRmap_[std::make_pair(file.str(), line)].push_back(&*I);
       } else {
         if (isa<PHINode>(&*I) || isa<AllocaInst>(&*I) || isa<BranchInst>(&*I)) {
-
         } else if (isa<CallInst>(&*I) || isa<InvokeInst>(&*I)) {
-
         }
       }
     }
@@ -172,7 +160,6 @@ bool ConAnalysis::printMap(Module &M) {
       funcIter != M.getFunctionList().end(); funcIter++) {
     Function *F = funcIter;
     std::cerr << "\nFUNCTION " << F->getName().str() << "\n";
-  
     for (auto blk = F->begin(); blk != F->end(); ++blk) {
       errs() << "\nBASIC BLOCK " << blk->getName() << "\n";
       for (auto i = blk->begin(); i != blk->end(); ++i) {
@@ -196,36 +183,71 @@ bool ConAnalysis::printMap(Module &M) {
 }
 
 bool ConAnalysis::part1_getCorruptedIRs(Module &M) {
-  for (auto funcIter = M.getFunctionList().begin();
-      funcIter != M.getFunctionList().end(); funcIter++) {
-    Function *F = funcIter;
-    //if(F->getName().str().compare(p1_input.funcName) != 0)
-    //continue;
-    //errs() << "------------Function Name :" << F->getName() << "-----\n";
-    for (auto I = inst_begin(F), E = inst_end(F); I != E; ++I) {
-      for (int op_i = 0, op_num = I->getNumOperands();
-          op_i < op_num; op_i++) {
-        Value * v = I->getOperand(op_i);
-        if (isa<Instruction>(v)) {
-          if (corruptedIR_.count(ins2int_[cast<Instruction>(v)])) {
-            corruptedIR_.insert(ins2int_[&*I]);
-            continue;
-          }
-        } else if (v->hasName()) {
-          //errs() << v->getName() << " ";
-        } else {
-          //errs() << "XXX ";
-        }
-      }
-    }
+  errs() << "---------------------------------------\n";
+  errs() << "       part1_getCorruptedIRs           \n";
+  errs() << "---------------------------------------\n";
+  while (!callstack_.empty()) {
+    auto& loc = callstack_.top();
+    errs() << "Outter while loop: Go into " << loc.first->getName() << "\n";
+    intra_dataflow_analysis(loc.first, loc.second);
+    callstack_.pop();
   }
-  errs() << "------------- Part 1 Result ----------------\n";
+  errs() << "---------- Part 1 Result --------------\n";
   printSet(corruptedIR_);
   return false;
 }
 
-bool ConAnalysis::part2_getDominantFrontiers(Module &M) {
+bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins) {
+  bool rv = false;
+  auto I = inst_begin(F);
+  if (ins != nullptr) {
+    for (; I != inst_end(F); ++I) {
+      if (&*I == &*ins) {
+        // Skip the previous call instruction after returned.
+        if (isa<CallInst>(&*I)) {
+          ++I;
+        }
+        corruptedIR_.insert(ins2int_[&*I]);
+        break;
+      }
+    }
+    assert(I != inst_end(F) && "Couldn't find callstack instruction.");
+  }
+  // TODO: Add related library functions into our .bc file.
+  //assert(I == inst_end(F) && "Couldn't obtain the source code of function.");
+  // When we found the instruction, we pop the stack.
+  for (; I != inst_end(F); ++I) {
+    for (int op_i = 0, op_num = I->getNumOperands(); op_i < op_num; op_i++) {
+      Value * v = I->getOperand(op_i);
+      if (isa<Instruction>(v)) {
+        if (corruptedIR_.count(ins2int_[cast<Instruction>(v)])) {
+          corruptedIR_.insert(ins2int_[&*I]);
+          break;
+        }
+      }
+    }
+    if (isa<ReturnInst>(&*I)) {
+      rv = true;
+    } else if (isa<CallInst>(&*I)) {
+      CallSite cs(&*I);
+      Function * callee = cs.getCalledFunction();
+      if (!callee) {
+        errs() << "Couldn't get callee for instruction ";
+        I->print(errs());
+        errs() << "\n";
+        continue;
+      }
+      std::string fnname = callee->getName().str();
+      if (fnname.compare(0, 5, "llvm.") == 0)
+        continue;
+      errs() << F->getName() << " calls " << callee->getName() << "\n";
+      intra_dataflow_analysis(callee, nullptr);
+    }
+  }
+  return rv;
+}
 
+bool ConAnalysis::part2_getDominantFrontiers(Module &M) {
   //for (auto FuncIter = M.getFunctionList().begin();
       //FuncIter != M.getFunctionList().end(); FuncIter++) {
     //Function *F = FuncIter;
@@ -237,7 +259,7 @@ bool ConAnalysis::part2_getDominantFrontiers(Module &M) {
       //auto it_end = dominators[(p2_input.danOpI)->getParent()].end();
       //for (; it != it_end; ++it) {
         //for (auto i = (*it)->begin(); i != (*it)->end(); ++i) {
-          //dominantFrontiers.insert(ins2int_[i]);  
+          //dominantFrontiers.insert(ins2int_[i]);
           //if (&*i == p2_input.danOpI)
             //break;
         //}
@@ -245,18 +267,18 @@ bool ConAnalysis::part2_getDominantFrontiers(Module &M) {
       //break;
     //}
   //}
-  //errs() << "------------- Part 2 Result ----------------\n";
-  //printSet(dominantFrontiers); 
+  //errs() << "---------- Part 2 Result --------------\n";
+  //printSet(dominantFrontiers);
   return false;
 }
 
 bool ConAnalysis::part3_getFeasiblePath(Module &M) {
-  std::set_intersection(corruptedIR_.begin(), corruptedIR_.end(), 
+  std::set_intersection(corruptedIR_.begin(), corruptedIR_.end(),
                         dominantfrontiers_.begin(),
                         dominantfrontiers_.end(),
-                        std::inserter(feasiblepath_, 
-                                      feasiblepath_.end()));  
-  errs() << "------------- Part 3 Result ----------------\n";
+                        std::inserter(feasiblepath_,
+                                      feasiblepath_.end()));
+  errs() << "---------- Part 3 Result --------------\n";
   printSet(feasiblepath_);
   return false;
 }
@@ -291,10 +313,10 @@ void ConAnalysis::computeDominators(Function &F, std::map<BasicBlock *,
 
     std::set<BasicBlock *> intersects = dominators[*pred_begin(Z)];
 
-    for (auto PI = pred_begin(Z), E = pred_end(Z); 
+    for (auto PI = pred_begin(Z), E = pred_end(Z);
         PI != E; ++PI) {
       std::set<BasicBlock *> newDoms;
-      for (auto dom_it = dominators[*PI].begin(), 
+      for (auto dom_it = dominators[*PI].begin(),
           dom_end = dominators[*PI].end();
           dom_it != dom_end; dom_it++) {
         if (intersects.count(*dom_it))
@@ -347,11 +369,11 @@ void ConAnalysis::print(std::ostream &O, const Module *M) const {
 
 char ConAnalysis::ID = 0;
 
-// register the ConAnalysis class: 
+// register the ConAnalysis class:
 //  - give it a command-line argument (ConAnalysis)
 //  - a name ("Concurrency Bug Analysis")
 //  - a flag saying that we don't modify the CFG
 //  - a flag saying this is not an analysis pass
-static RegisterPass<ConAnalysis> X("ConAnalysis", 
+static RegisterPass<ConAnalysis> X("ConAnalysis",
                                    "concurrency bug analysis code",
                                     true, false);

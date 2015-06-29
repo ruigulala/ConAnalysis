@@ -21,6 +21,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/CallSite.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/InstIterator.h"
@@ -81,6 +82,8 @@ namespace ConAnal {
       virtual bool printMap(Module &M);
       /// 
       virtual bool part1_getCorruptedIRs(Module &M);
+      ///
+      virtual bool intra_dataflow_analysis(Function *, Instruction *);
       ///
       virtual bool part2_getDominantFrontiers(Module &M);
       ///
