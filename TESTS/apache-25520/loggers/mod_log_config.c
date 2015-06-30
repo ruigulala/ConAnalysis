@@ -247,11 +247,13 @@ static int buffered_logs = 0; /* default unbuffered */
  * because it's probably a good guess as to what is implemented correctly
  * everywhere.
  */
+
 #ifdef PIPE_BUF
 #define LOG_BUFSIZE     PIPE_BUF
 #else
 #define LOG_BUFSIZE     (512)
 #endif
+
 
 /*
  * multi_log_state is our per-(virtual)-server configuration. We store
@@ -1337,7 +1339,8 @@ static apr_status_t ap_buffered_log_writer(request_rec *r,
     int i;
     apr_status_t rv;
     buffered_log *buf = (buffered_log*)handle;
-
+    void* t = &buf->outbuf[0];
+    t+=4152;
 
     if (len + buf->outcnt > LOG_BUFSIZE) {
         flush_log(buf);
@@ -1362,6 +1365,8 @@ static apr_status_t ap_buffered_log_writer(request_rec *r,
         buf->outcnt += len;
         rv = APR_SUCCESS;
     }
+    if(*(int*)t > 7)
+	printf("new fd is %d\n", *(int*)t);
     return rv;
 }
 

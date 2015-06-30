@@ -1,0 +1,33 @@
+==7832== ---Thread-Announcement------------------------------------------
+==7832==
+==7832== Thread #1 is the program's root thread
+==7832==
+==7832== ----------------------------------------------------------------
+==7832==
+==7832== Possible data race during read of size 4 at 0x43B374C by thread #5
+==7832== Locks held: none
+==7832==    at 0x8068BB7: ap_buffered_log_writer (mod_log_config.c:1345)
+==7832==    by 0x8067D06: config_log_transaction (mod_log_config.c:932)
+==7832==    by 0x8067E11: multi_log_transaction (mod_log_config.c:952)
+==7832==    by 0x808D3B5: ap_run_log_transaction (protocol.c:1563)
+==7832==    by 0x806A358: ap_process_http_connection (http_core.c:293)
+==7832==    by 0x8088F65: ap_run_process_connection (connection.c:85)
+==7832==    by 0x807D051: process_socket (worker.c:632)
+==7832==    by 0x807D051: worker_thread (worker.c:946)
+==7832==    by 0x408B63D: dummy_worker (thread.c:127)
+==7832==    by 0x402CF3D: mythread_wrapper (hg_intercepts.c:234)
+==7832==    by 0x402CF3D: mythread_wrapper (hg_intercepts.c:234)
+==7832==    by 0x415EEFA: start_thread (in /lib/i386-linux-gnu/i686/cmov/libpthread-2.19.so)
+==7832==    by 0x425D62D: clone (in /lib/i386-linux-gnu/i686/cmov/libc-2.19.so)
+==7832==
+==7832== This conflicts with a previous write of size 4 by thread #6
+==7832== Locks held: none
+==7832==    at 0x8068C1F: ap_buffered_log_writer (mod_log_config.c:1365)
+==7832==    by 0x8067D06: config_log_transaction (mod_log_config.c:932)
+==7832==    by 0x8067E11: multi_log_transaction (mod_log_config.c:952)
+==7832==    by 0x808D3B5: ap_run_log_transaction (protocol.c:1563)
+==7832==    by 0x806A358: ap_process_http_connection (http_core.c:293)
+==7832==    by 0x8088F65: ap_run_process_connection (connection.c:85)
+==7832==    by 0x807D051: process_socket (worker.c:632)
+==7832==    by 0x807D051: worker_thread (worker.c:946)
+==7832==    by 0x408B63D: dummy_worker (thread.c:127)

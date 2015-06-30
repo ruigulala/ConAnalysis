@@ -7,8 +7,8 @@ plugin:
 
 # create .bc from source
 %.bc:
-	clang -emit-llvm -O0 -g -c loggers-src/$*.c -o loggers-src/$*.bc
-	cp loggers-src/$*.bc ./
+	clang -emit-llvm -O0 -g -c loggers/$*.c -o loggers/$*.bc
+	cp loggers/$*.bc ./
 
 # create human-readable assembly (.ll) from .bc
 %.ll: %.bc
