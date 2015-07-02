@@ -1,0 +1,26 @@
+==18461== Possible data race during read of size 1 at 0x861DFD4 by thread #601
+==18461== Locks held: none
+==18461==    at 0x818B49A: check_access(THD*, unsigned long, char const*, unsigned long*, bool, bool, bool) (sql_parse.cc:5261)
+==18461==    by 0x818C6E5: check_table_access(THD*, unsigned long, st_table_list*, bool) (sql_parse.cc:5386)
+==18461==    by 0x81912ED: mysql_execute_command(THD*) (sql_parse.cc:2545)
+==18461==    by 0x8197404: mysql_parse(THD*, char*, unsigned int) (sql_parse.cc:5870)
+==18461==    by 0x8198611: dispatch_command(enum_server_command, THD*, char*, unsigned int) (sql_parse.cc:1766)
+==18461==    by 0x8199A1F: do_command (sql_parse.cc:1550)
+==18461==    by 0x8199A1F: handle_one_connection (sql_parse.cc:1181)
+==18461==    by 0x402CF3D: mythread_wrapper (hg_intercepts.c:234)
+==18461==    by 0x4082EFA: start_thread (in /lib/i386-linux-gnu/i686/cmov/libpthread-2.19.so)
+==18461==    by 0x432162D: clone (in /lib/i386-linux-gnu/i686/cmov/libc-2.19.so)
+==18461==
+==18461== This conflicts with a previous write of size 1 by thread #602
+==18461== Locks held: 1, at address 0x861C5C0
+==18461==    at 0x820AE9B: grant_load (sql_acl.cc:3335)
+==18461==    by 0x820AE9B: grant_reload(THD*) [clone .part.38] (sql_acl.cc:3512)
+==18461==    by 0x818F0A5: reload_acl_and_cache(THD*, unsigned long, st_table_list*, bool*) (sql_parse.cc:6741)
+==18461==    by 0x8194707: mysql_execute_command(THD*) (sql_parse.cc:4037)
+==18461==    by 0x8197404: mysql_parse(THD*, char*, unsigned int) (sql_parse.cc:5870)
+==18461==    by 0x8198611: dispatch_command(enum_server_command, THD*, char*, unsigned int) (sql_parse.cc:1766)
+==18461==    by 0x8199A1F: do_command (sql_parse.cc:1550)
+==18461==    by 0x8199A1F: handle_one_connection (sql_parse.cc:1181)
+==18461==    by 0x402CF3D: mythread_wrapper (hg_intercepts.c:234)
+==18461==    by 0x4082EFA: start_thread (in /lib/i386-linux-gnu/i686/cmov/libpthread-2.19.so)
+==18461==  Address 0x861dfd4 is 0 bytes inside data symbol "grant_option"

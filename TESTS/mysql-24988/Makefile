@@ -5,7 +5,7 @@ MYSQL=mysql-5.0.27
 INCLUDE=$(MYSQL)/include
 SQL=$(MYSQL)/sql
 REGEX=$(MYSQL)/regex
-PATH=$(MYSQL)/libmysqld
+DIR=$(MYSQL)/libmysqld
 
 # The default target builds the plugin
 plugin:
@@ -13,8 +13,8 @@ plugin:
 
 # create .bc from source
 %.bc:
-	clang -emit-llvm -O0 -g -c $(PATH)/$*.cc -o $(PATH)/$*.bc -I $(INCLUDE) -I $(SQL) -I $(REGEX)
-	cp $(PATH)/$*.bc ./
+	clang -emit-llvm -O0 -g -c $(DIR)/*.cc -I $(INCLUDE) -I $(SQL) -I $(REGEX)
+	llvm-link *.bc -o $*.bc
 
 # create human-readable assembly (.ll) from .bc
 %.ll: %.bc
