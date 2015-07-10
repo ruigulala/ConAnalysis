@@ -3,61 +3,68 @@
 #include <pthread.h>    /* POSIX Threads */
 #include <unistd.h>
 
-typedef struct file_pointer{
+struct vnode{
+  int *v_rdev;
+};
+
+struct file{
   int f_ops;
-  int *f_vnode;
-}fptr;
+  struct vnode *f_vnode;
+};
+
+int i = 10;
+int devfs_ops_f = 100;
+struct vnode *g_vp;
 
 //Use f_vnode in this function
-void fo_kqfilter(void *ptr){
-  fptr *fp = (fptr *)ptr;
-  if (fp->f_ops == 0){
-    return;
-  }
-  int *get = fp->f_vnode; //Read fp->f_vnode and use it
-  printf("read f_vnode: %d\n", *get);
+static int devfs_kqfilter_f(struct file *fp){
+  int error = devfs_fp_check(fp);
+  return error;
+}
 
-  return;
+int devfs_fp_check(struct file *fp){
+  int dswp = devvn_refthread(fp->f_vnode);
+  return 0;
+}
+
+int devvn_refthread(struct vnode *vp){
+  int *devp;
+  devp = vp->v_rdev; // dangerous operation
+  printf("read fp: %d \n", *devp);
+  return 0;
 }
 
 //Assign non-zero value to f_ops and allocate a vnode for this opening file
-void devfs_open(void *ptr){
-  fptr *fp = (fptr *)ptr;
-  int val = 100;
-  int *vp = &val;
-  
-  fp->f_ops = 1;
-  sleep(1);
-  fp->f_vnode = vp;
+static int devfs_open(struct file *fp){
+  fp->f_ops = devfs_ops_f;
+  fp->f_vnode = g_vp;
 
-  return;
+  return 0;
 }
 
 //Set f_vnode to NULL initially
-void falloc(void *ptr){
-  fptr *fp = (fptr *)ptr;
+void falloc(struct file *fp){
   fp->f_ops = 0;
-  fp->f_vnode = NULL;
-
-  return;
+  int local_i = 10;
+  fp->f_vnode = &local_i;
 }
 
 int main(){
   pthread_t thread1, thread2;
-  fptr *fp = (fptr*) malloc(sizeof(fptr));
+  struct file *fp = (struct file*) malloc(sizeof(struct file));
+
+  g_vp = (struct vnode*)malloc(sizeof(struct vnode));
+  g_vp->v_rdev = &i;
 
   falloc(fp);
- // fp->f_ops = 0;
- // fp->f_vnode = NULL;
 
-  printf("%d\n", fp->f_ops);
-
-  pthread_create (&thread1, NULL, (void *) &fo_kqfilter, (void *) fp);
+  pthread_create (&thread1, NULL, (void *) &devfs_kqfilter_f, (void *) fp);
   pthread_create (&thread2, NULL, (void *) &devfs_open, (void *) fp);
 
   pthread_join(thread1, NULL);
   pthread_join(thread2, NULL);
 
+  free(fp);
   return 0;
 
 }
