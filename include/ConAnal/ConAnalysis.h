@@ -62,7 +62,7 @@ namespace ConAnal {
       }
 
       ///
-      void printSet(std::set<uint64_t> &inputset);
+      void printList(std::list<Value *> &inputset);
       ///
       void printSet(std::set<BasicBlock *> &inputset);
       /// This method reads the initial value of callstack from 
@@ -83,9 +83,11 @@ namespace ConAnal {
       /// 
       virtual bool part1_getCorruptedIRs(Module &M);
       ///
-      virtual bool intra_dataflow_analysis(Function *, Instruction *);
+      virtual bool intra_dataflow_analysis(Function *, Instruction *, 
+                                           std::set<uint32_t>& corruptedparams);
       ///
-      virtual bool part2_getDominantFrontiers(Module &M);
+      virtual bool part2_getDominantFrontiers(Module &M, 
+                                              CallStackInput &csinput);
       ///
       virtual bool part3_getFeasiblePath(Module &M);
       ///
@@ -115,14 +117,12 @@ namespace ConAnal {
       std::map<Instruction *, int> ins2int_;
       uint64_t ins_count_ = 1;
       /// <fileName, lineNum> -> list<Instruction *>
-      std::map<std::pair<std::string, uint32_t>, 
+      std::map<std::pair<std::string, uint32_t>,
                std::list<Instruction *>> sourcetoIRmap_;
-      //std::set<Instruction *> corruptedIR;
-      std::set<uint64_t> corruptedIR_;
-      //std::set<Instruction *> dominantFrontiers;
-      std::set<uint64_t> dominantfrontiers_;
-      //std::set<Instruction *> feasiblePath;
-      std::set<uint64_t> feasiblepath_;
+      std::set<Value *> corruptedIR_;
+      std::list<Value *> orderedcorruptedIR_;
+      std::list<Value *> dominantfrontiers_;
+      std::list<Value *> feasiblepath_;
       std::stack<std::pair<Function *, Instruction *>> callstack_;
   };
 }

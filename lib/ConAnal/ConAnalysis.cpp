@@ -21,11 +21,15 @@
 using namespace llvm;
 using namespace ConAnal;
 
-
-void ConAnalysis::printSet(std::set<uint64_t> &inputset) {
+void ConAnalysis::printList(std::list<Value *> &inputset) {
   errs() << "[ ";
-  for (auto& iter : inputset)
-    errs() << iter << " "; 
+  for (auto& iter : inputset) {
+    if (isa<Instruction>(iter)) {
+      errs() << ins2int_[cast<Instruction>(iter)] << " ";
+    } else {
+      errs() << iter->getName() << " ";
+    }
+  }
   errs() << "]\n";
 }
 
@@ -68,14 +72,14 @@ void ConAnalysis::initializeCallStack(CallStackInput &csinput) {
     uint32_t line = std::get<2>(*cs_it);
     auto mapitr = sourcetoIRmap_.find(std::make_pair(filename, line));
     if (mapitr == sourcetoIRmap_.end()) {
-      errs() << "ERROR: <" << std::get<0>(*cs_it) << " " 
+      errs() << "ERROR: <" << std::get<0>(*cs_it) << " "
              << std::get<2>(*cs_it) << ">"
              << " sourcetoIRmap_ look up failed.\n";
       abort();
     }
     std::list<Instruction *>& insList = mapitr->second;
     if (insList.begin() == insList.end()) {
-      errs() << "ERROR: <" << std::get<0>(*cs_it) << " " 
+      errs() << "ERROR: <" << std::get<0>(*cs_it) << " "
              << std::get<2>(*cs_it) << ">"
              << " No matching instructions.\n";
       abort();
@@ -95,7 +99,6 @@ void ConAnalysis::initializeCallStack(CallStackInput &csinput) {
           callstack_.push(std::make_pair(&*func, *listit));
           break;
         } else {
-          
         }
       }
     }
@@ -117,20 +120,14 @@ bool ConAnalysis::runOnModule(Module &M) {
     //else
       //errs() << "external node\n";
   //}
-  // Put dying into container
   createMaps(M);
-  //printMap(M);
+  printMap(M);
   parseInput("part1_loc.txt", p1_input);
   initializeCallStack(p1_input);
-  // TODO : TEMPORARY HACK FOR REAL LIBSAFE
-  //corruptedIR.insert(23);
-  // TODO : TEMPORARY HACK FOR REAL APACHE-25520
-  //corruptedIR.insert(1841);
   part1_getCorruptedIRs(M);
-  //parseInput("part2_loc.txt", p2_input);
-  //part2_getDominantFrontiers(M);
-  //part3_getFeasiblePath(M);
-
+  parseInput("part2_loc.txt", p2_input);
+  part2_getDominantFrontiers(M, p2_input);
+  part3_getFeasiblePath(M);
   return false;
 }
 
@@ -188,16 +185,22 @@ bool ConAnalysis::part1_getCorruptedIRs(Module &M) {
   errs() << "---------------------------------------\n";
   while (!callstack_.empty()) {
     auto& loc = callstack_.top();
-    errs() << "Outter while loop: Go into " << loc.first->getName() << "\n";
-    intra_dataflow_analysis(loc.first, loc.second);
+    std::set<uint32_t> coparams;
+    errs() << "Original Callstack: Go into \"" << loc.first->getName()
+           << "\"\n";
+    intra_dataflow_analysis(loc.first, loc.second, coparams);
     callstack_.pop();
   }
-  errs() << "---------- Part 1 Result --------------\n";
-  printSet(corruptedIR_);
+  errs() << "---------------------------------------\n";
+  errs() << "           Part 1 Result               \n";
+  errs() << "---------------------------------------\n";
+  printList(orderedcorruptedIR_);
+  errs() << "\n";
   return false;
 }
 
-bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins) {
+bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
+                                          std::set<uint32_t>& corruptedparams) {
   bool rv = false;
   auto I = inst_begin(F);
   if (ins != nullptr) {
@@ -206,25 +209,45 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins) {
         // Skip the previous call instruction after returned.
         if (isa<CallInst>(&*I)) {
           ++I;
+        } else {
+          corruptedIR_.insert(&*I);
+          orderedcorruptedIR_.push_back(&*I);
         }
-        corruptedIR_.insert(ins2int_[&*I]);
         break;
       }
     }
     assert(I != inst_end(F) && "Couldn't find callstack instruction.");
   }
-  // TODO: Add related library functions into our .bc file.
-  //assert(I == inst_end(F) && "Couldn't obtain the source code of function.");
+  if (I == inst_end(F)) {
+    errs() << "Couldn't obtain the source code of function \""
+           << F->getName() << "\"\n";
+    return false;
+  }
+  uint32_t op_i = 0;
+  for (Function::arg_iterator args = F->arg_begin(); args != F->arg_end();
+       ++args) {
+    if (corruptedparams.count(op_i)) {
+      Value * v = args;
+      errs() << "Corrupted Arg: " << v->getName() << "\n";
+      corruptedIR_.insert(v);
+      orderedcorruptedIR_.push_back(v);
+    }
+  }
   // When we found the instruction, we pop the stack.
   for (; I != inst_end(F); ++I) {
-    for (int op_i = 0, op_num = I->getNumOperands(); op_i < op_num; op_i++) {
+    if (isa<CallInst>(&*I)) {
+      std::string fnname = I->getName().str();
+      if (fnname.compare(0, 5, "llvm.") == 0)
+        continue;
+    }
+    for (uint32_t op_i = 0, op_num = I->getNumOperands(); op_i < op_num;
+         op_i++) {
       Value * v = I->getOperand(op_i);
-      if (isa<Instruction>(v)) {
-        if (corruptedIR_.count(ins2int_[cast<Instruction>(v)])) {
-          corruptedIR_.insert(ins2int_[&*I]);
+        if (corruptedIR_.count(v)) {
+          corruptedIR_.insert(&*I);
+          orderedcorruptedIR_.push_back(&*I);
           break;
         }
-      }
     }
     if (isa<ReturnInst>(&*I)) {
       rv = true;
@@ -240,46 +263,82 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins) {
       std::string fnname = callee->getName().str();
       if (fnname.compare(0, 5, "llvm.") == 0)
         continue;
-      errs() << F->getName() << " calls " << callee->getName() << "\n";
-      intra_dataflow_analysis(callee, nullptr);
+      std::set<uint32_t> coparams;
+      // Iterate through all the parameters to find the corrupted ones
+      for (uint32_t op_i = 0, op_num = I->getNumOperands(); op_i < op_num;
+           op_i++) {
+        Value * v = I->getOperand(op_i);
+        if (isa<Instruction>(v)) {
+          if (corruptedIR_.count(v)) {
+            coparams.insert(op_i);
+            break;
+          }
+        }
+      }
+      errs() << "\"" << F->getName() << "\"" << " calls "
+             << "\"" << callee->getName() << "\"\n";
+      intra_dataflow_analysis(callee, nullptr, coparams);
     }
   }
   return rv;
 }
 
-bool ConAnalysis::part2_getDominantFrontiers(Module &M) {
-  //for (auto FuncIter = M.getFunctionList().begin();
-      //FuncIter != M.getFunctionList().end(); FuncIter++) {
-    //Function *F = FuncIter;
-    //std::map<BasicBlock *, std::set<BasicBlock *>> dominators;
-    //if (F->getName().str().compare(p2_input.funcName) == 0) {
-      //computeDominators(*F, dominators);
-      ////printDominators(*F, dominators);
-      //auto it = dominators[(p2_input.danOpI)->getParent()].begin();
-      //auto it_end = dominators[(p2_input.danOpI)->getParent()].end();
-      //for (; it != it_end; ++it) {
-        //for (auto i = (*it)->begin(); i != (*it)->end(); ++i) {
-          //dominantFrontiers.insert(ins2int_[i]);
-          //if (&*i == p2_input.danOpI)
-            //break;
-        //}
-      //}
-      //break;
-    //}
-  //}
-  //errs() << "---------- Part 2 Result --------------\n";
-  //printSet(dominantFrontiers);
+bool ConAnalysis::part2_getDominantFrontiers(Module &M,
+                                             CallStackInput &csinput) {
+  for (auto FuncIter = M.getFunctionList().begin();
+       FuncIter != M.getFunctionList().end(); FuncIter++) {
+    Function *F = FuncIter;
+    std::map<BasicBlock *, std::set<BasicBlock *>> dominators;
+    std::tuple<std::string, std::string, uint32_t> part2_input;
+    part2_input = csinput.front();
+    if (F->getName().str().compare(std::get<1>(part2_input)) == 0) {
+      computeDominators(*F, dominators);
+      printDominators(*F, dominators);
+      // filename, lineNum -> Instruction *
+      std::string filename = std::get<0>(part2_input);
+      uint32_t line = std::get<2>(part2_input);
+      auto mapitr = sourcetoIRmap_.find(std::make_pair(filename, line));
+      if (mapitr == sourcetoIRmap_.end()) {
+        errs() << "ERROR: <" << std::get<0>(part2_input) << " "
+               << std::get<2>(part2_input) << ">"
+               << " sourcetoIRmap_ look up failed.\n";
+        abort();
+      }
+      Instruction * danOpI = sourcetoIRmap_[std::make_pair(filename,
+                                                           line)].front();
+      auto it = dominators[danOpI->getParent()].begin();
+      auto it_end = dominators[danOpI->getParent()].end();
+      for (; it != it_end; ++it) {
+        for (auto i = (*it)->begin(); i != (*it)->end(); ++i) {
+          dominantfrontiers_.push_back(&*i);
+          if (&*i == danOpI)
+            break;
+        }
+      }
+      break;
+    }
+  }
+  errs() << "---------------------------------------\n";
+  errs() << "           Part 2 Result               \n";
+  errs() << "---------------------------------------\n";
+  printList(dominantfrontiers_);
+  errs() << "\n";
   return false;
 }
 
 bool ConAnalysis::part3_getFeasiblePath(Module &M) {
-  std::set_intersection(corruptedIR_.begin(), corruptedIR_.end(),
-                        dominantfrontiers_.begin(),
-                        dominantfrontiers_.end(),
-                        std::inserter(feasiblepath_,
-                                      feasiblepath_.end()));
-  errs() << "---------- Part 3 Result --------------\n";
-  printSet(feasiblepath_);
+  errs() << "---------------------------------------\n";
+  errs() << "           Part 3 Result               \n";
+  errs() << "---------------------------------------\n";
+  for (auto& listitr : orderedcorruptedIR_) {
+    for (auto& listitr2 : dominantfrontiers_) {
+      if (listitr == listitr2) {
+        feasiblepath_.push_back(listitr);
+      }
+    }
+  }
+  printList(feasiblepath_);
+  errs() << "\n";
   return false;
 }
 
@@ -332,7 +391,7 @@ void ConAnalysis::computeDominators(Function &F, std::map<BasicBlock *,
       for (auto SI = succ_begin(Z), E = succ_end(Z); SI != E; ++SI) {
         if (*SI == entry) {
           continue;
-        } else if(std::find(worklist.begin(),
+        } else if (std::find(worklist.begin(),
                             worklist.end(), *SI) == worklist.end()) {
           worklist.push_back(*SI);
         }
