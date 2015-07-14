@@ -123,7 +123,7 @@ namespace ConAnal {
       std::list<Value *> orderedcorruptedIR_;
       std::list<Value *> dominantfrontiers_;
       std::list<Value *> feasiblepath_;
-      std::stack<std::pair<Function *, Instruction *>> callstack_;
+      std::list<std::pair<Function *, Instruction *>> callstack_;
   };
 }
 

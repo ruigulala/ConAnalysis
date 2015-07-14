@@ -90,13 +90,13 @@ void ConAnalysis::initializeCallStack(CallStackInput &csinput) {
       if (std::next(cs_it, 1) == csinput.end()) {
         Function * func = &*(((*listit)->getParent())->getParent());
         errs() << func->getName() << "\n";
-        callstack_.push(std::make_pair(&*func, *listit));
+        callstack_.push_front(std::make_pair(&*func, *listit));
         break;
       } else {
         if (isa<CallInst>(*listit) || isa<InvokeInst>(*listit)) {
           Function * func = &*(((*listit)->getParent())->getParent());
           errs() << func->getName() << "\n";
-          callstack_.push(std::make_pair(&*func, *listit));
+          callstack_.push_front(std::make_pair(&*func, *listit));
           break;
         } else {
         }
@@ -184,12 +184,13 @@ bool ConAnalysis::part1_getCorruptedIRs(Module &M) {
   errs() << "       part1_getCorruptedIRs           \n";
   errs() << "---------------------------------------\n";
   while (!callstack_.empty()) {
-    auto& loc = callstack_.top();
+    auto& loc = callstack_.front();
     std::set<uint32_t> coparams;
     errs() << "Original Callstack: Go into \"" << loc.first->getName()
            << "\"\n";
     intra_dataflow_analysis(loc.first, loc.second, coparams);
-    callstack_.pop();
+    errs() << "Callstack POP OUTER\n";
+    callstack_.pop_front();
   }
   errs() << "---------------------------------------\n";
   errs() << "           Part 1 Result               \n";
@@ -210,8 +211,10 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
         if (isa<CallInst>(&*I)) {
           ++I;
         } else {
-          corruptedIR_.insert(&*I);
-          orderedcorruptedIR_.push_back(&*I);
+          if (!corruptedIR_.count(&*I)) {
+            orderedcorruptedIR_.push_back(&*I);
+            corruptedIR_.insert(&*I);
+          }
         }
         break;
       }
@@ -224,34 +227,17 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
     return false;
   }
   uint32_t op_i = 0;
-  for (Function::arg_iterator args = F->arg_begin(); args != F->arg_end();
-       ++args) {
+  for (Function::arg_iterator args = F->arg_begin(); 
+       args != F->arg_end(); ++args, ++op_i) {
     if (corruptedparams.count(op_i)) {
       Value * v = args;
       errs() << "Corrupted Arg: " << v->getName() << "\n";
+      if (!corruptedIR_.count(v)) orderedcorruptedIR_.push_back(v);
       corruptedIR_.insert(v);
-      orderedcorruptedIR_.push_back(v);
     }
   }
-  // When we found the instruction, we pop the stack.
   for (; I != inst_end(F); ++I) {
     if (isa<CallInst>(&*I)) {
-      std::string fnname = I->getName().str();
-      if (fnname.compare(0, 5, "llvm.") == 0)
-        continue;
-    }
-    for (uint32_t op_i = 0, op_num = I->getNumOperands(); op_i < op_num;
-         op_i++) {
-      Value * v = I->getOperand(op_i);
-        if (corruptedIR_.count(v)) {
-          corruptedIR_.insert(&*I);
-          orderedcorruptedIR_.push_back(&*I);
-          break;
-        }
-    }
-    if (isa<ReturnInst>(&*I)) {
-      rv = true;
-    } else if (isa<CallInst>(&*I)) {
       CallSite cs(&*I);
       Function * callee = cs.getCalledFunction();
       if (!callee) {
@@ -260,9 +246,20 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
         errs() << "\n";
         continue;
       }
+      // Skip all the llvm debug function
       std::string fnname = callee->getName().str();
       if (fnname.compare(0, 5, "llvm.") == 0)
         continue;
+      // Check for cycles
+      bool cycle_flag = false;
+      for (auto& csit : callstack_) {
+        if ((std::get<0>(csit))->getName().str().compare(
+                (callee->getName()).str()) == 0) {
+          cycle_flag = true;
+          break;
+        }
+      }
+      if (cycle_flag) continue;
       std::set<uint32_t> coparams;
       // Iterate through all the parameters to find the corrupted ones
       for (uint32_t op_i = 0, op_num = I->getNumOperands(); op_i < op_num;
@@ -270,6 +267,7 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
         Value * v = I->getOperand(op_i);
         if (isa<Instruction>(v)) {
           if (corruptedIR_.count(v)) {
+            errs() << "Param No." << op_i << " is corrupted.\n";
             coparams.insert(op_i);
             break;
           }
@@ -277,7 +275,30 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
       }
       errs() << "\"" << F->getName() << "\"" << " calls "
              << "\"" << callee->getName() << "\"\n";
+      errs() << "Callstack PUSH " << callee->getName() << "\n";
+      callstack_.push_front(std::make_pair(callee, nullptr));
       intra_dataflow_analysis(callee, nullptr, coparams);
+      errs() << "Callstack POP " << callstack_.front().first->getName() << "\n";
+      callstack_.pop_front();
+    } else {
+      for (uint32_t op_i = 0, op_num = I->getNumOperands(); op_i < op_num;
+           op_i++) {
+        Value * v = I->getOperand(op_i);
+          if (corruptedIR_.count(v)) {
+            if (!corruptedIR_.count(&*I)) {
+              orderedcorruptedIR_.push_back(&*I);
+              corruptedIR_.insert(&*I);
+              if (isa<StoreInst>(&*I)) {
+                Value * v = I->getOperand(1);
+                if (!corruptedIR_.count(v)) {
+                  orderedcorruptedIR_.push_back(v);
+                  corruptedIR_.insert(v);
+                }
+              }
+            }
+            break;
+          }
+      }
     }
   }
   return rv;
@@ -306,6 +327,8 @@ bool ConAnalysis::part2_getDominantFrontiers(Module &M,
       }
       Instruction * danOpI = sourcetoIRmap_[std::make_pair(filename,
                                                            line)].front();
+      errs() << "\nDangerous Operation BASIC BLOCK\n";
+      errs() << danOpI->getParent()->getName() << "\n";
       auto it = dominators[danOpI->getParent()].begin();
       auto it_end = dominators[danOpI->getParent()].end();
       for (; it != it_end; ++it) {
