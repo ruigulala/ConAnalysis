@@ -1,3 +1,4 @@
+//This bug can not be reproduced by valgrind, because the corrupted variable is protected by lock
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
@@ -22,6 +23,7 @@ int *virKeepAliveNew()
   return ret;
 }
 
+//virNetServerClientInitKeepAlive() will be called to initialize client->keepalive at begining 
 int virNetServerClientInitKeepAlive(virNetServerClientPtr client)
 {
   virKeepAlivePtr ka;
@@ -46,6 +48,8 @@ int virKeepAliveStart(virKeepAlivePtr ka)
   return ret;
 }
 
+//virServerClientStartKeepAlive() function will call virKeepAliveStart() and use client->keepalive 
+//as a pararmeter
 int virServerClientStartKeepAlive(virNetServerClientPtr client)
 {
   int ret;
@@ -57,13 +61,14 @@ int virServerClientStartKeepAlive(virNetServerClientPtr client)
   return ret;
 }
 
-void virNetServerClinetClose(virNetServerClientPtr client)
+//virNetServerClientClose() function will be called when closing
+void virNetServerClientClose(virNetServerClientPtr client)
 {
   virKeepAlivePtr ka;
   pthread_mutex_lock(&start_lock);
   if (client->keepalive) {
     ka = client->keepalive;
-    client->keepalive = NULL;
+    client->keepalive = NULL; //Here, we will set client->keepalive to NULL
     free(ka);
     pthread_mutex_unlock(&start_lock);
     return;
@@ -84,7 +89,7 @@ int main()
   virNetServerClientInitKeepAlive(client);
 
   pthread_create (&thread1, NULL, (void *) &virServerClientStartKeepAlive, (void *) client);
-  pthread_create (&thread2, NULL, (void *) &virNetServerClinetClose, (void *) client);
+  pthread_create (&thread2, NULL, (void *) &virNetServerClientClose, (void *) client);
 
   pthread_join(thread1, NULL);
   pthread_join(thread2, NULL);
