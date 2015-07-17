@@ -2,7 +2,7 @@ configure_file(autotest.sh autotest.sh COPYONLY)
 configure_file(part1_loc.txt part1_loc.txt COPYONLY)
 configure_file(part2_loc.txt part2_loc.txt COPYONLY)
 
-set(SOURCE_NAME freebsd-cve-3527a)
+set(SOURCE_NAME freebsd-osvdb-58543)
 set(src_bc_compiler clang)
 
 add_custom_command(
@@ -16,5 +16,5 @@ add_custom_command(
 set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_MAKE_CLEAN_FILES ${SOURCE_NAME}.bc)
 
 add_custom_target(
-  SOURCE_NAME ALL
+  freebsd-osvdb-58543 ALL
   DEPENDS ${SOURCE_NAME}.bc)
