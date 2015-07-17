@@ -166,7 +166,7 @@ bool ConAnalysis::printMap(Module &M) {
       for (auto i = blk->begin(); i != blk->end(); ++i) {
         errs() << "%" << ins2int_[i] << ":\t";
         errs() << Instruction::getOpcodeName(i->getOpcode()) << "\t";
-        for (int op_i = 0; op_i < i->getNumOperands(); op_i++) {
+        for (uint32_t op_i = 0; op_i < i->getNumOperands(); op_i++) {
           Value * v = i->getOperand(op_i);
           if (isa<Instruction>(v)) {
             errs() << "%" << ins2int_[cast<Instruction>(v)] << " ";

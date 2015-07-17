@@ -6,6 +6,9 @@ add_library(ConAnalysis SHARED ConAnalysis.cpp)
 target_include_directories(ConAnalysis PUBLIC ${LLVM_INCLUDE_DIRS})
 target_compile_definitions(ConAnalysis PUBLIC ${LLVM_DEFINITIONS})
 
+set(CMAKE_C_FLAGS "-Wall -Werror")
+set(CMAKE_CXX_FLAGS "-Wall -Werror")
+
 if (NOT LLVM_ENABLE_RTTI)
   if (NOT MSVC)
     target_compile_options(ConAnalysis PUBLIC "-fno-rtti")
