@@ -32,12 +32,8 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cstdint>
-#include <fstream>
-#include <iostream>
 #include <list>
 #include <set>
-#include <sstream>
-#include <stack>
 #include <string>
 #include <tuple>
 #include <utility>

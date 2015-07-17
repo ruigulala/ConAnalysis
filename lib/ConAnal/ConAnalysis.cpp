@@ -6,7 +6,7 @@
 // License. See LICENSE.TXT for details.
 //
 //===----------------------------------------------------------------------===//
-//
+// Copyright (c) 2015 Columbia University. All rights reserved.
 // This file is a skeleton of an implementation for the ConAnalysis
 // pass of Columbia University in the City of New York. For this program,
 // our goal is to find those particular concurrency bugs that will make
@@ -17,6 +17,18 @@
 #define DEBUG_TYPE "ConAnalysis"
 
 #include "../../include/ConAnal/ConAnalysis.h"
+#include <cstdint>
+#include <fstream>
+#include <iostream>
+#include <list>
+#include <map>
+#include <set>
+#include <sstream>
+#include <stack>
+#include <string>
+#include <tuple>
+#include <utility>
+#include <vector>
 
 using namespace llvm;
 using namespace ConAnal;
@@ -112,14 +124,6 @@ bool ConAnalysis::runOnModule(Module &M) {
   errs() << "---------------------------------------\n";
   errs() << "             ConAnalysis               \n";
   errs() << "---------------------------------------\n";
-  //CallGraph CG = CallGraph(M);
-  //for (CallGraph::const_iterator I = CG.begin(), E = CG.end(); I != E; ++I) {
-    //errs() << "  CS<" << (I->first)->getName() << "> calls ";
-    //if (Function *FI = I->second->getFunction())
-      //errs() << "function '" << FI->getName() <<"'\n";
-    //else
-      //errs() << "external node\n";
-  //}
   createMaps(M);
   printMap(M);
   parseInput("part1_loc.txt", p1_input);
@@ -227,7 +231,7 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
     return false;
   }
   uint32_t op_i = 0;
-  for (Function::arg_iterator args = F->arg_begin(); 
+  for (Function::arg_iterator args = F->arg_begin();
        args != F->arg_end(); ++args, ++op_i) {
     if (corruptedparams.count(op_i)) {
       Value * v = args;
@@ -365,7 +369,7 @@ bool ConAnalysis::part3_getFeasiblePath(Module &M) {
   return false;
 }
 
-// TODO: Change to C++11
+// TODO(ruigulala): Change to C++11
 void ConAnalysis::computeDominators(Function &F, std::map<BasicBlock *,
                        std::set<BasicBlock *>> & dominators) {
   std::vector<BasicBlock *> worklist;
