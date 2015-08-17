@@ -37,6 +37,7 @@
 #include <string>
 #include <tuple>
 #include <utility>
+#include <map>
 
 using namespace llvm;
 
@@ -63,7 +64,8 @@ namespace ConAnal {
       void printSet(std::set<BasicBlock *> &inputset);
       /// This method reads the initial value of callstack from 
       /// the associated file that belongs to each part of the analysis.
-      void parseInput(std::string inputfile, CallStackInput &csinput);
+      void parseInput(std::string inputfile, uint32_t part, 
+                                                       CallStackInput &csinput);
       /// This method intialize the call stack for our analysis
       void initializeCallStack(CallStackInput &csInput);
       ///
@@ -92,6 +94,11 @@ namespace ConAnal {
       ///
       void printDominators(Function &F, std::map<BasicBlock *,
                            std::set<BasicBlock *>> & dominators);
+      ///
+      void get_corruptedMap(Instruction *I);
+
+      ///
+      bool cmp_Maps(Instruction * I);
 
       //**********************************************************************
       // print (do not change this method)
@@ -110,6 +117,7 @@ namespace ConAnal {
         AU.setPreservesAll();
       };
     private:
+      std::string corruptedVar_;
       std::map<Instruction *, int> ins2int_;
       uint64_t ins_count_ = 1;
       /// <fileName, lineNum> -> list<Instruction *>
@@ -120,6 +128,7 @@ namespace ConAnal {
       std::list<Value *> dominantfrontiers_;
       std::list<Value *> feasiblepath_;
       std::list<std::pair<Function *, Instruction *>> callstack_;
+      std::map<Value *, std::list<Value *>> corruptedMap_;
   };
 }
 

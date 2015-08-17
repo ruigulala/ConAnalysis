@@ -56,24 +56,12 @@ void ConAnalysis::printSet(std::set<BasicBlock *> &inputset) {
   }
 }
 
-void ConAnalysis::parseInput(std::string inputfile, uint32_t part, 
-                                                      CallStackInput &csinput) {
+void ConAnalysis::parseInput(std::string inputfile, CallStackInput &csinput) {
   std::ifstream ifs(inputfile);
   std::string line;
-  uint32_t ifsNum = 0;
   errs() << "Replaying input:\n";
   errs() << "Read from file " << inputfile << "\n";
   while (std::getline(ifs, line)) {
-    //If this is part one, get the corrupted variable from first line
-    if (part == 1 && ifsNum == 0) {
-      corruptedVar_ = line;
-      ifsNum ++;
-      errs() << "--------------------------------\n";
-      errs() << "         Corrupted Var          \n";
-      errs() << "--------------------------------\n";
-      errs() << corruptedVar_ << "\n";
-      continue;
-    }
     char fileName[300];
     char funcName[300];
     uint32_t lineNum;
@@ -84,7 +72,6 @@ void ConAnalysis::parseInput(std::string inputfile, uint32_t part,
     errs() << "FileName:" << s1 << "\n";
     errs() << "LineNum:" << lineNum << "\n\n";
     line.clear();
-    ifsNum ++;
   }
 }
 
@@ -140,10 +127,10 @@ bool ConAnalysis::runOnModule(Module &M) {
   errs() << "---------------------------------------\n";
   createMaps(M);
   printMap(M);
-  parseInput("part1_loc.txt", 1, p1_input);
+  parseInput("part1_loc.txt", p1_input);
   initializeCallStack(p1_input);
   part1_getCorruptedIRs(M);
-  parseInput("part2_loc.txt", 2, p2_input);
+  parseInput("part2_loc.txt", p2_input);
   part2_getDominantFrontiers(M, p2_input);
   part3_getFeasiblePath(M);
   return false;
@@ -218,48 +205,26 @@ bool ConAnalysis::part1_getCorruptedIRs(Module &M) {
   return false;
 }
 
-bool ConAnalysis::cmp_Maps(Instruction * I) {
-  Value * first = I->getOperand(0);
-  if (corruptedMap_.count(first)) {
-    auto list_iter = corruptedMap_[first].cbegin();
-    for (uint32_t op_i = 1, op_num = I->getNumOperands(); op_i < op_num; 
-        op_i++){
-      if (*list_iter == I->getOperand(op_i)) {
-        errs() << *list_iter << "\n";
-        list_iter ++;
-      } else {
-        return false;
-      }
-    }
-    errs() << "--------------------------------\n";
-    errs() << "          show compare          \n";
-    errs() << "--------------------------------\n";
-    I->print(errs());
-    errs() << "\n";
-    return true;
-  }
-  return false;
-}
-
 void ConAnalysis::get_corruptedMap(Instruction * I) {
   Value * op_s;
-  std::list<Value *> pairs;
-  Value * v;
-  for (uint32_t op_i = 0, op_num = I->getNumOperands(); op_i < op_num; 
+  std::pair <uint32_t, uint32_t> struct_pair;
+  uint32_t pairs[2];
+  for (uint32_t op_i = 0, op_num = I->getNumOperands(); op_i < op_num - 1; 
       op_i++) {
-    if (op_i == 0) {
-     v = I->getOperand(op_i);
-     continue;
-    }
-    pairs.push_back(I->getOperand(op_i));
+    Value *v = I->getOperand(op_i);
+    if (v->hasName()) {
+      op_s = v;
+    } 
+    pairs[op_i] = v->getValueID();
   }
-  corruptedMap_[v] = pairs;
+  struct_pair = std::make_pair(pairs[0], pairs[1]);
+  corruptedMap_[op_s] = struct_pair; 
   errs() << "--------------------------------\n";
   errs() << "          get corrupted         \n";
   errs() << "--------------------------------\n";
-  for (auto& maps : corruptedMap_) {
-    errs() << maps.first << ": " << maps.second.front()
-      << ", " <<  maps.second.back() << "\n";
+  for (auto maps : corruptedMap_) {
+    errs() << maps.first->getName() << ": " << maps.second.first
+      << ", " <<  maps.second.second << "\n";
   }
 }
 
@@ -269,19 +234,21 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
   auto I = inst_begin(F);
   if (ins != nullptr) {
     for (; I != inst_end(F); ++I) {
-      if (isa<GetElementPtrInst>(&*I)) {
-        if (!corruptedVar_.compare(I->getName())) {
-          errs() << "First instruction: " << I->getName() << "\n";
-          I->print(errs());
-          errs() << "\n";
-          get_corruptedMap(&*I);
-          orderedcorruptedIR_.push_back(&*I);
-          corruptedIR_.insert(&*I);
-          break;
+      if (&*I == &*ins) {
+        // Skip the previous call instruction after returned.
+        if (isa<CallInst>(&*I)) {
+          ++I;
+        } else {
+          if (!corruptedIR_.count(&*I)) {
+            get_corruptedMap(&*I);
+            orderedcorruptedIR_.push_back(&*I);
+            corruptedIR_.insert(&*I);
+          }
         }
+        break;
       }
     }
-    //assert(I != inst_end(F) && "Couldn't find callstack instruction.");
+    assert(I != inst_end(F) && "Couldn't find callstack instruction.");
   }
   if (I == inst_end(F)) {
     errs() << "Couldn't obtain the source code of function \""
@@ -325,7 +292,7 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
       std::set<uint32_t> coparams;
       // Iterate through all the parameters to find the corrupted ones
       for (uint32_t op_i = 0, op_num = I->getNumOperands(); op_i < op_num;
-          op_i++) {
+           op_i++) {
         Value * v = I->getOperand(op_i);
         if (isa<Instruction>(v)) {
           if (corruptedIR_.count(v)) {
@@ -342,16 +309,10 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
       intra_dataflow_analysis(callee, nullptr, coparams);
       errs() << "Callstack POP " << callstack_.front().first->getName() << "\n";
       callstack_.pop_front();
-    } else if (isa<GetElementPtrInst>(&*I)) {
-      if (cmp_Maps(&*I) && !corruptedIR_.count(&*I)) {
-        errs() << "fuck!\n";
-        orderedcorruptedIR_.push_back(&*I);
-        corruptedIR_.insert(&*I);
-      }
     } else {
-        for (uint32_t op_i = 0, op_num = I->getNumOperands(); op_i < op_num;
-          op_i++) {
-          Value * v = I->getOperand(op_i);
+      for (uint32_t op_i = 0, op_num = I->getNumOperands(); op_i < op_num;
+           op_i++) {
+        Value * v = I->getOperand(op_i);
           if (corruptedIR_.count(v)) {
             if (!corruptedIR_.count(&*I)) {
               orderedcorruptedIR_.push_back(&*I);
@@ -361,11 +322,11 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
                 if (!corruptedIR_.count(v)) {
                   orderedcorruptedIR_.push_back(v);
                   corruptedIR_.insert(v);
+                }
               }
             }
+            break;
           }
-          break;
-        }
       }
     }
   }
@@ -514,7 +475,7 @@ void ConAnalysis::printDominators(Function &F, std::map<BasicBlock *,
 // after each call to runOnModule.
 //**********************************************************************
 void ConAnalysis::print(std::ostream &O, const Module *M) const {
-      O << "This is Concurrency Bug Analysis.\n";
+    O << "This is Concurrency Bug Analysis.\n";
 }
 
 char ConAnalysis::ID = 0;
@@ -525,5 +486,5 @@ char ConAnalysis::ID = 0;
 //  - a flag saying that we don't modify the CFG
 //  - a flag saying this is not an analysis pass
 static RegisterPass<ConAnalysis> X("ConAnalysis",
-                                    "concurrency bug analysis code",
+                                   "concurrency bug analysis code",
                                     true, false);
