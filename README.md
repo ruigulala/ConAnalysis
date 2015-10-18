@@ -54,6 +54,7 @@ Currently, we're using whole-program-llvm to build the target project into one s
 We're using whole-program-llvm as a submodule of our project. The following are the steps to set up whole-program-llvm.
 
 1. Initialize whole-program-llvm
+
 > cd path-to-ConAnalysis-source/whole-program-llvm
 
 > git submodule init && git submodule update
@@ -84,10 +85,12 @@ or just simply open another terminal window.
 
 ## Build ConAnalysis project
 Now, since you've installed all the dependencies of ConAnalysis project, you can build it now.
-1. Goto ConAnalysis source code folder
+
+Goto ConAnalysis source code folder
 > cd path-to-ConAnalysis-source
 
-2. Build ConAnalysis using CMake
+Build ConAnalysis using CMake
+
 > mkdir build
 
 > cd build
@@ -96,7 +99,8 @@ Now, since you've installed all the dependencies of ConAnalysis project, you can
 
 > make
 
-3. Run our LLVM analysis pass on libsafe
+Run our LLVM analysis pass on libsafe
+
 > make test
 
 If you goto 
