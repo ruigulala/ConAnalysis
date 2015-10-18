@@ -53,7 +53,7 @@ After this step, under path-to-llvm-source/build/bin, you'll see all the executa
 Currently, we're using whole-program-llvm to build the target project into one single llvm bitcode file.
 We're using whole-program-llvm as a submodule of our project. The following are the steps to set up whole-program-llvm.
 
-1. Initialize whole-program-llvm
+* Initialize whole-program-llvm
 
 > cd path-to-ConAnalysis-source/whole-program-llvm
 
@@ -61,7 +61,7 @@ We're using whole-program-llvm as a submodule of our project. The following are 
 
 Now, you'll see the source code under this folder.
 
-2. Setup the enviroment of whole-program-llvm
+* Setup the enviroment of whole-program-llvm
 whole-program-llvm will require some enviroment variable setup. You can put the following bash command into your ~/.bashrc file.
 Make sure you replace the path-to... with your own path name!!!!
 
@@ -86,10 +86,10 @@ or just simply open another terminal window.
 ## Build ConAnalysis project
 Now, since you've installed all the dependencies of ConAnalysis project, you can build it now.
 
-Goto ConAnalysis source code folder
+* Goto ConAnalysis source code folder
 > cd path-to-ConAnalysis-source
 
-Build ConAnalysis using CMake
+* Build ConAnalysis using CMake
 
 > mkdir build
 
@@ -99,7 +99,7 @@ Build ConAnalysis using CMake
 
 > make
 
-Run our LLVM analysis pass on libsafe
+* Run our LLVM analysis pass on libsafe
 
 > make test
 
