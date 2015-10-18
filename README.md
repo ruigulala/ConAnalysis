@@ -28,11 +28,15 @@ Goto path-to-llvm-source, the folder name is llvm-3.6.1.src
 Make sure you replace the path-to... with your own path name!!!!
 
 > cd path-to-llvm-source
+
 Install the following dependencies.
+
 > sudo apt-get update
 
 > sudo apt-get install build-essential subversion swig python2.7-dev libedit-dev libncurses5-dev 
+
 Build LLVM together with Clang using CMake
+
 > mkdir build
 
 > cd build
@@ -40,7 +44,9 @@ Build LLVM together with Clang using CMake
 > cmake ..
 
 > make
+
 After this step, under path-to-llvm-source/build/bin, you'll see all the executables including clang and clang++ etc.
+
 > sudo make install
 
 ## Install whole-program-llvm
@@ -51,11 +57,13 @@ We're using whole-program-llvm as a submodule of our project. The following are 
 > cd path-to-ConAnalysis-source/whole-program-llvm
 
 > git submodule init && git submodule update
+
 Now, you'll see the source code under this folder.
 
 2. Setup the enviroment of whole-program-llvm
 whole-program-llvm will require some enviroment variable setup. You can put the following bash command into your ~/.bashrc file.
 Make sure you replace the path-to... with your own path name!!!!
+
 > export CONANAL_ROOT=path-to-ConAnalysis-source
 
 > alias wllvm=$CONANAL_ROOT/whole-program-llvm/wllvm
@@ -67,8 +75,11 @@ Make sure you replace the path-to... with your own path name!!!!
 > export LLVM_COMPILER=clang
 
 > export WLLVM_OUTPUT=WARNING
+
 Don't forget to update ~/.bashrc using
+
 > source ~/.bashrc
+
 or just simply open another terminal window.
 
 ## Build ConAnalysis project
@@ -87,24 +98,24 @@ Now, since you've installed all the dependencies of ConAnalysis project, you can
 
 3. Run our LLVM analysis pass on libsafe
 > make test
+
 If you goto 
+
 > cd $CONANAL_ROOT/build/Testing/Temporary
 
 > vim LastTest.log
+
 You'll see the following output at the end.
 ```
 ---------------------------------------
            Part 1 Result     
 ---------------------------------------
 [ 5 ]
-
 Replaying input:
 Read from file part2_loc.txt
 Funcname:strcpy
 FileName:intercept.c
 LineNum:166
-
-
 Dangerous Operation Basic Block & Instruction
 if.then11 & 633
 strcpy (intercept.c:166)
