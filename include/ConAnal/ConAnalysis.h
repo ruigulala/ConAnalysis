@@ -64,8 +64,8 @@ namespace ConAnal {
       void printSet(std::set<BasicBlock *> &inputset);
       /// This method reads the initial value of callstack from 
       /// the associated file that belongs to each part of the analysis.
-      void parseInput(std::string inputfile, uint32_t part, 
-                                                       CallStackInput &csinput);
+      void parseInput(std::string inputfile,
+                      CallStackInput &csinput);
       /// This method intialize the call stack for our analysis
       void initializeCallStack(CallStackInput &csInput);
       ///
@@ -87,7 +87,8 @@ namespace ConAnal {
       virtual bool part2_getDominantFrontiers(Module &M, 
                                               CallStackInput &csinput);
       ///
-      virtual bool part3_getFeasiblePath(Module &M);
+      virtual bool part3_getFeasiblePath(Module &M, 
+                                         std::list<Value *> &dominantfrontiers);
       ///
       void computeDominators(Function &F, std::map<BasicBlock *,
                              std::set<BasicBlock *>> & dominators);
@@ -125,8 +126,8 @@ namespace ConAnal {
                std::list<Instruction *>> sourcetoIRmap_;
       std::set<Value *> corruptedIR_;
       std::list<Value *> orderedcorruptedIR_;
-      std::list<Value *> dominantfrontiers_;
-      std::list<Value *> feasiblepath_;
+      //std::list<Value *> dominantfrontiers_;
+      /*std::list<Value *> feasiblepath_;*/
       std::list<std::pair<Function *, Instruction *>> callstack_;
       std::map<Value *, std::list<Value *>> corruptedMap_;
   };

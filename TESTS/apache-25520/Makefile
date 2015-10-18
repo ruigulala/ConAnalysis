@@ -7,8 +7,8 @@ plugin:
 
 # create .bc from source
 %.bc:
-	clang -emit-llvm -O0 -g -c loggers-src/$*.c -o loggers-src/$*.bc
-	cp loggers-src/$*.bc ./
+	clang -emit-llvm -O0 -g -c loggers/$*.c -o loggers/$*.bc
+	cp loggers/$*.bc ./
 
 # create human-readable assembly (.ll) from .bc
 %.ll: %.bc
@@ -24,19 +24,13 @@ plugin:
 	opt -mem2reg $^ -o $*.mem2reg
 	mv $*.mem2reg $*.bc
 
-# run printCode on a .bc file
-%.printCode: %.bc plugin
-	opt -load ../../Debug/lib/P1.so -printCode $*.bc > /dev/null
-
 # run ConAnalysis on a .bc file
 %.ConAnalysis: %.bc plugin
-	opt -load ../../Debug/lib/ConAnal.so -ConAnalysis $*.bc > /dev/null
+	opt -load /home/ruigu/Workspace/ConAnalysis/build/lib/ConAnal/libConAnalysis.so -ConAnalysis $*.bc > /dev/null
 
-# run optLoads on a .bc file, creating a new .bc file
-%.optLoads: %.bc plugin
-	opt -load ../../Debug/lib/P1.so -optLoads $*.bc -o $*.optLoads
-	mv $*.optLoads $*.bc
-
+# run ConAnalysis on a .bc file
+%.DOL: %.bc plugin
+	opt -load /home/ruigu/Workspace/ConAnalysis/build/lib/DOL/libDOL.so -DOL $*.bc > /dev/null
 
 # clean up generated files
 clean:
