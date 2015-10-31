@@ -43,13 +43,23 @@ using namespace llvm;
 
 /* <functionName, fileName, lineNum> */
 typedef std::list<std::tuple<std::string, std::string, uint32_t>> CallStackInput;
-
 typedef struct {
   char fileName[200];
   char funcName[100];
   int lineNum;
   Instruction * danOpI;
 } part2_input;
+typedef union PtrIdxUnion {
+  std::pair<Value *, Value *> array_idx;
+  Value * idx;
+} GepIdxUnion;
+/// idxType 
+/// 0 means gep contains 3 operands, 1 means gep contains 2 operands.
+typedef struct PtrIdxStruct {
+  uint16_t idxType;
+  GepIdxUnion gepIdx;
+} GepIdxStruct;
+typedef std::map<uint32_t, Value *> CorruptedArgs;
 
 namespace ConAnal {
   class ConAnalysis : public ModulePass {
@@ -82,7 +92,7 @@ namespace ConAnal {
       virtual bool part1_getCorruptedIRs(Module &M);
       ///
       virtual bool intra_dataflow_analysis(Function *, Instruction *, 
-                                           std::set<uint32_t>& corruptedparams);
+                                           CorruptedArgs & corruptedparams);
       ///
       virtual bool part2_getDominantFrontiers(Module &M, 
                                               CallStackInput &csinput);
@@ -125,12 +135,10 @@ namespace ConAnal {
       std::map<std::pair<std::string, uint32_t>,
                std::list<Instruction *>> sourcetoIRmap_;
       std::set<Value *> corruptedIR_;
+      std::map<Value *, std::list<GepIdxStruct *>> corruptedPtr_;
       std::list<Value *> orderedcorruptedIR_;
-      //std::list<Value *> dominantfrontiers_;
-      /*std::list<Value *> feasiblepath_;*/
       std::list<std::pair<Function *, Instruction *>> callstack_;
       std::map<Value *, std::list<Value *>> corruptedMap_;
   };
 }
-
 #endif

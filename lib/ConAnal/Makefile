@@ -1,5 +1,4 @@
 DEBUG = ../../Debug/lib
-# add optLoads.o to the following line when ready
 OBJS = ConAnalysis.o
 
 $(DEBUG)/ConAnal.so: $(OBJS)

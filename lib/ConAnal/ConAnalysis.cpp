@@ -65,6 +65,7 @@ void ConAnalysis::parseInput(std::string inputfile, CallStackInput &csinput) {
     char fileName[300];
     char funcName[300];
     uint32_t lineNum;
+    // Input format: funcName (fileName:lineNum)
     sscanf(line.c_str(), "%s (%[^ :]:%u)\n", funcName, fileName, &lineNum);
     std::string s1(fileName), s2(funcName);
     csinput.push_front(std::make_tuple(s1, s2, lineNum));
@@ -77,7 +78,7 @@ void ConAnalysis::parseInput(std::string inputfile, CallStackInput &csinput) {
 
 void ConAnalysis::initializeCallStack(CallStackInput &csinput) {
   errs() << "---------------------------------------\n";
-  errs() << "       Initializing call stack.\n";
+  errs() << "       Initializing call stack\n";
   errs() << "---------------------------------------\n";
   for (auto cs_it = csinput.begin(); cs_it != csinput.end(); ++cs_it) {
     std::string filename = std::get<0>(*cs_it);
@@ -100,7 +101,8 @@ void ConAnalysis::initializeCallStack(CallStackInput &csinput) {
       errs() << "Begin:\n";
       (*listit)->print(errs());
       errs() << "\n";
-      if (std::next(cs_it, 1) == csinput.end()) {
+      if (isa<GetElementPtrInst>(*listit) || 
+          std::next(cs_it, 1) == csinput.end()) {
         Function * func = &*(((*listit)->getParent())->getParent());
         errs() << func->getName() << "\n";
         callstack_.push_front(std::make_pair(&*func, *listit));
@@ -111,7 +113,6 @@ void ConAnalysis::initializeCallStack(CallStackInput &csinput) {
           errs() << func->getName() << "\n";
           callstack_.push_front(std::make_pair(&*func, *listit));
           break;
-        } else {
         }
       }
     }
@@ -189,12 +190,21 @@ bool ConAnalysis::part1_getCorruptedIRs(Module &M) {
   errs() << "---------------------------------------\n";
   while (!callstack_.empty()) {
     auto& loc = callstack_.front();
-    std::set<uint32_t> coparams;
+    CorruptedArgs coparams;
     errs() << "Original Callstack: Go into \"" << loc.first->getName()
            << "\"\n";
-    intra_dataflow_analysis(loc.first, loc.second, coparams);
-    errs() << "Callstack POP OUTER\n";
+    bool addFuncRet = false;
+    addFuncRet = intra_dataflow_analysis(loc.first, loc.second, coparams);
+    
+    errs() << "Callstack POP " << loc.first->getName() << "\n";
     callstack_.pop_front();
+    if (addFuncRet && !callstack_.empty()) {
+      auto& loc = callstack_.front();
+      if (!corruptedIR_.count(&*loc.second)) {
+        orderedcorruptedIR_.push_back(&*loc.second);
+        corruptedIR_.insert(&*loc.second);
+      }
+    }
   }
   errs() << "---------------------------------------\n";
   errs() << "           Part 1 Result               \n";
@@ -228,7 +238,7 @@ bool ConAnalysis::part1_getCorruptedIRs(Module &M) {
 //}
 
 bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
-                                          std::set<uint32_t>& corruptedparams) {
+                                          CorruptedArgs & corruptedparams) {
   bool rv = false;
   auto I = inst_begin(F);
   if (ins != nullptr) {
@@ -242,6 +252,24 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
             //get_corruptedMap(&*I);
             orderedcorruptedIR_.push_back(&*I);
             corruptedIR_.insert(&*I);
+            if (isa<GetElementPtrInst>(&*I)) {
+              int op_num = I->getNumOperands();
+              GepIdxStruct * gep_idx = (GepIdxStruct *) 
+                  malloc(sizeof(GepIdxStruct));
+              if (op_num == 3) {
+                gep_idx->idxType = 0;         
+                gep_idx->gepIdx.array_idx = std::make_pair(I->getOperand(1),
+                                                           I->getOperand(2));
+              } else if (op_num == 2) {
+                gep_idx->idxType = 0;         
+                gep_idx->gepIdx.idx = I->getOperand(1);
+              } else {
+                errs() << "Error: Cannot parse GetElementPtrInst\n";
+                abort();
+              }
+              corruptedPtr_[I->getOperand(1)].push_back(gep_idx);
+            }
+            rv = true;
           }
         }
         break;
@@ -254,14 +282,21 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
            << F->getName() << "\"\n";
     return false;
   }
+  // Handle the corrupted var passed in as function parameters
   uint32_t op_i = 0;
   for (Function::arg_iterator args = F->arg_begin();
        args != F->arg_end(); ++args, ++op_i) {
     if (corruptedparams.count(op_i)) {
       Value * v = args;
       errs() << "Corrupted Arg: " << v->getName() << "\n";
-      if (!corruptedIR_.count(v)) orderedcorruptedIR_.push_back(v);
-      corruptedIR_.insert(v);
+      if (!corruptedIR_.count(v)) {
+        orderedcorruptedIR_.push_back(v);
+        corruptedIR_.insert(v);
+      }
+      Value * corArgs = corruptedparams[op_i];
+      if (corruptedPtr_.count(&*corArgs)) {
+        corruptedPtr_[&*v] = corruptedPtr_[&*corArgs];
+      }
     }
   }
   for (; I != inst_end(F); ++I) {
@@ -288,7 +323,7 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
         }
       }
       if (cycle_flag) continue;
-      std::set<uint32_t> coparams;
+      CorruptedArgs coparams;
       // Iterate through all the parameters to find the corrupted ones
       for (uint32_t op_i = 0, op_num = I->getNumOperands(); op_i < op_num;
            op_i++) {
@@ -296,8 +331,9 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
         if (isa<Instruction>(v)) {
           if (corruptedIR_.count(v)) {
             errs() << "Param No." << op_i << " is corrupted.\n";
-            coparams.insert(op_i);
-            break;
+            coparams[op_i] = &*v;
+            // TODO: Why a break here?
+            //break;
           }
         }
       }
@@ -305,7 +341,14 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
              << "\"" << callee->getName() << "\"\n";
       errs() << "Callstack PUSH " << callee->getName() << "\n";
       callstack_.push_front(std::make_pair(callee, nullptr));
-      intra_dataflow_analysis(callee, nullptr, coparams);
+      bool addFuncRet = false;
+      addFuncRet = intra_dataflow_analysis(callee, nullptr, coparams);
+      if (addFuncRet) {
+        if (!corruptedIR_.count(&*I)) {
+          orderedcorruptedIR_.push_back(&*I);
+          corruptedIR_.insert(&*I);
+        }
+      } 
       errs() << "Callstack POP " << callstack_.front().first->getName() << "\n";
       callstack_.pop_front();
     } else {
@@ -322,7 +365,24 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
                   orderedcorruptedIR_.push_back(v);
                   corruptedIR_.insert(v);
                 }
+              } else if (isa<GetElementPtrInst>(&*I)) {
+                int op_ii = I->getNumOperands();
+                GepIdxStruct * gep_idx = (GepIdxStruct *) 
+                    malloc(sizeof(GepIdxStruct));
+                if (op_ii == 3) {
+                  gep_idx->idxType = 0;         
+                  gep_idx->gepIdx.array_idx = std::make_pair(I->getOperand(1),
+                                                             I->getOperand(2));
+                } else if (op_ii == 2) {
+                  gep_idx->idxType = 0;         
+                  gep_idx->gepIdx.idx = I->getOperand(1);
+                } else {
+                  errs() << "Error: Cannot parse GetElementPtrInst\n";
+                  abort();
+                }
+                corruptedPtr_[I->getOperand(1)].push_back(gep_idx);
               }
+              rv = true;
             }
             break;
           }
