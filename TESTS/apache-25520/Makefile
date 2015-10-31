@@ -6,9 +6,10 @@ plugin:
 	make -C ../../lib/ConAnal
 
 # create .bc from source
-%.bc:
-	clang -emit-llvm -O0 -g -c loggers/$*.c -o loggers/$*.bc
-	cp loggers/$*.bc ./
+apache-25520.bc:
+	clang -emit-llvm -O0 -g -c loggers/mod_log_config.c -o apache-25520.bc
+	opt -mem2reg apache-25520.bc -o apache-25520.mem2reg
+	mv apache-25520.mem2reg apache-25520.bc
 
 # create human-readable assembly (.ll) from .bc
 %.ll: %.bc
