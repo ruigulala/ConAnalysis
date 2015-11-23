@@ -1,2 +1,0 @@
-libsafe.c _libsafe_stackVariableP 24 dying
-libsafe.c _libsafe_stackVariableP 25
