@@ -110,29 +110,95 @@ If you goto
 > vim LastTest.log
 
 You'll see the following output at the end.
+The first part is a dump of LLVM IR with virtual registers labeled in an monotonically increasing order.
 ```
 ---------------------------------------
-           Part 1 Result     
+             ConAnalysis     
 ---------------------------------------
-[ 5 ]
-Replaying input:
-Read from file part2_loc.txt
-Funcname:strcpy
-FileName:intercept.c
-LineNum:166
-Dangerous Operation Basic Block & Instruction
-if.then11 & 633
-strcpy (intercept.c:166)
-Binary file (standard input) matches
-<end of output>
-Test time =   0.12 sec
-----------------------------------------------------------
-Test Passed.
-"libsafe-cve-1125.test" end time: Oct 18 00:19 EDT
-"libsafe-cve-1125.test" time elapsed: 00:00:00
-----------------------------------------------------------
-```
 
+FUNCTION make_config_log_state
+
+BASIC BLOCK entry
+%1: call  XXX XXX XXX XXX llvm.dbg.value 
+%2: call  XXX XXX XXX XXX llvm.dbg.value 
+%3: call  p XXX apr_palloc 
+%4: bitcast %3 
+%5: call  XXX XXX XXX XXX llvm.dbg.value 
+%6: call  p XXX XXX apr_array_make 
+%7: getelementptr %4 XXX XXX  
+%8: store %6 %7 
+%9: getelementptr %4 XXX XXX  
+%10:  store XXX %9 
+%11:  getelementptr %4 XXX XXX  
+%12:  store XXX %11  
+%13:  getelementptr %4 XXX XXX  
+%14:  store XXX %13  
+%15:  call  p XXX apr_table_make 
+%16:  getelementptr %4 XXX XXX  
+%17:  store %15 %16  
+%18:  getelementptr %4 XXX XXX  
+%19:  load  %18  
+%20:  call  %19 XXX XXX apr_table_setn 
+%21:  bitcast %4 
+%22:  ret %21  
+```
+The second part is how ConAnalysis analyze the code. It includes how ConAnalysis traverses between functions indicated by the input callstack.
+```
+---------------------------------------
+       part1_getCorruptedIRs
+---------------------------------------
+Original Callstack: Go into "ap_buffered_log_writer"
+Adding corrupted variable: %1827
+Adding %1825 to crptPtr list
+Add %1827 to crpt list
+Param No.0 %1825 contains corruption.
+"ap_buffered_log_writer" calls "flush_log"
+Callstack PUSH flush_log
+Corrupted Arg: buf
+Add arg 0x507c1f0 to crptPtr list
+Add %1115 to crpt list
+Add %1127 to crpt list
+Param No.2 %1127 contains corruption.
+"flush_log" calls "apr_file_write"
+Callstack PUSH apr_file_write
+Couldn't obtain the source code of function "apr_file_write"
+Callstack POP apr_file_write
+Add %1129 to crpt list
+Callstack POP flush_log
+"ap_buffered_log_writer" calls "apr_palloc"
+Callstack PUSH apr_palloc
+Couldn't obtain the source code of function "apr_palloc"
+Callstack POP apr_palloc
+"ap_buffered_log_writer" calls "apr_file_write"
+Callstack PUSH apr_file_write
+Couldn't obtain the source code of function "apr_file_write"
+Callstack POP apr_file_write
+Add %1874 to crpt list
+Add %1877 to crpt list
+Add %1896 to crpt list
+Add %1902 to crpt list
+Callstack POP ap_buffered_log_writer
+Original Callstack: Go into "set_buffered_logs_on"
+Callstack POP set_buffered_logs_on
+```
+The third part is the output of part 1(forward dataflow analysis result). It indicates which LLVM virtual registers are corrupted. About the virtual register number, you can refer it to the first part of the result.
+```
+---------------------------------------
+           Part 1 Result
+---------------------------------------
+[ 1827 1828 1829 1830 1831 1115 1116 1117 1118 1127 1129 1130 1832 1874 1875 1877 1880 1896 1902 1903 1904 1905 1795 ]
+```
+The fourth part first displays the dangerous operation input and the interaction between its dominators and dataflow analysis.
+```
+Dangerous Operation Basic Block & Instruction
+entry & 1809
+ap_buffered_log_writer_init (loggers/mod_log_config.c:1322)
+...
+---------------------------------------
+           Part 3 Result
+---------------------------------------
+[ 1827 1828 1829 1830 1831 1874 1875 1877 1880 1902 ]
+```
 ## Future work
 Now you have finished all the required steps. You can enjoy the following hacking work on our project.
 If you've encounted any problems, send an email to Rui Gu(me) at rui.gu3@gmail.com or opening an issue on github.
