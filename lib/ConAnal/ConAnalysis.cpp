@@ -100,7 +100,7 @@ bool ConAnalysis::add2CrptList(Value * crptVal) {
   return false;
 }
 
-void ConAnalysis::parseInput(std::string inputfile, CallStackInput &csinput, 
+void ConAnalysis::parseInput(std::string inputfile, CallStackInput &csinput,
                              int InputType) {
   char varName[300];
   std::ifstream ifs(inputfile);
@@ -156,8 +156,8 @@ void ConAnalysis::initializeCallStack(CallStackInput &csinput) {
       if (isa<GetElementPtrInst>(*listit)) {
         StringRef cvar = getOriginalName((*listit)->getOperand(0));
         StringRef cvar_compare = StringRef(corruptedVar_);
-        errs() << "geteleptr: " << cvar << "\n"; 
-        errs() << "corruptedVar_: " << corruptedVar_ << "\n"; 
+        errs() << "geteleptr: " << cvar << "\n";
+        errs() << "corruptedVar_: " << corruptedVar_ << "\n";
         if (!cvar_compare.count(cvar))
           return;
         (*listit)->print(errs());
@@ -291,8 +291,8 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
             errs() << "%" << ins2int_[&*I] << "\n";
             if (isa<GetElementPtrInst>(&*I)) {
               int op_num = I->getNumOperands();
-              GepIdxStruct * gep_idx = (GepIdxStruct *)
-                  malloc(sizeof(GepIdxStruct));
+              GepIdxStruct * gep_idx = reinterpret_cast<GepIdxStruct *>
+                  (malloc(sizeof(GepIdxStruct)));
               if (op_num == 3) {
                 gep_idx->idxType = THREE_OP;
                 gep_idx->gepIdx.array_idx = std::make_pair(I->getOperand(1),
@@ -311,7 +311,7 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
                 corruptedPtr_[v].push_back(gep_idx);
               } else {
                 errs() << "Error: Outter pointer is not an instruction!\n";
-                abort(); 
+                abort();
               }
             }
             rv = true;
@@ -353,7 +353,7 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
       Function * callee = cs.getCalledFunction();
       if (!callee) {
         errs() << "Couldn't get callee for instruction ";
-        I->print(errs());errs() << "\n";
+        I->print(errs()); errs() << "\n";
         continue;
       }
       // Skip all the llvm debug function
@@ -377,7 +377,7 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
         Value * v = I->getOperand(op_i);
         if (isa<Instruction>(v)) {
           if (corruptedIR_.count(v) || corruptedPtr_.count(v)) {
-            errs() << "Param No." << op_i << " %" 
+            errs() << "Param No." << op_i << " %"
             << ins2int_[dyn_cast<Instruction>(v)] << " contains corruption.\n";
             coparams[op_i] = &*v;
           }
@@ -422,7 +422,7 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
         }
       }
       for (uint32_t op_i = 0, op_num = I->getNumOperands(); op_i < op_num;
-           op_i++) {     
+           op_i++) {
         Value * v = I->getOperand(op_i);
         if (corruptedIR_.count(v)) {
           if (!corruptedIR_.count(&*I)) {
@@ -430,8 +430,8 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
             corruptedIR_.insert(&*I);
             errs() << "Add %" << ins2int_[&*I] << " to crpt list\n";
             int op_ii = I->getNumOperands();
-            GepIdxStruct * gep_idx = (GepIdxStruct *)
-                malloc(sizeof(GepIdxStruct));
+            GepIdxStruct * gep_idx = reinterpret_cast<GepIdxStruct *>
+                (malloc(sizeof(GepIdxStruct)));
             if (op_ii == 3) {
               gep_idx->idxType = THREE_OP;
               gep_idx->gepIdx.array_idx = std::make_pair(I->getOperand(1),
