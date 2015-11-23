@@ -25,6 +25,7 @@
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/InstIterator.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/Statistic.h"
@@ -43,18 +44,23 @@ using namespace llvm;
 
 /* <functionName, fileName, lineNum> */
 typedef std::list<std::tuple<std::string, std::string, uint32_t>> CallStackInput;
+
 typedef struct {
   char fileName[200];
   char funcName[100];
   int lineNum;
   Instruction * danOpI;
 } part2_input;
+
 typedef union PtrIdxUnion {
   std::pair<Value *, Value *> array_idx;
   Value * idx;
 } GepIdxUnion;
+
 /// idxType 
 /// 0 means gep contains 3 operands, 1 means gep contains 2 operands.
+#define THREE_OP 0
+#define TWO_OP 1
 typedef struct PtrIdxStruct {
   uint16_t idxType;
   GepIdxUnion gepIdx;
@@ -69,13 +75,21 @@ namespace ConAnal {
       }
 
       ///
+      const Function* findEnclosingFunc(const Value* V);
+      ///
+      const MDNode* findVar(const Value* V, const Function* F);
+      ///
+      StringRef getOriginalName(const Value* V);
+      ///
+      bool add2CrptList(Value * corruptedVal);
+      ///
       void printList(std::list<Value *> &inputset);
       ///
       void printSet(std::set<BasicBlock *> &inputset);
       /// This method reads the initial value of callstack from 
       /// the associated file that belongs to each part of the analysis.
-      void parseInput(std::string inputfile,
-                      CallStackInput &csinput);
+      void parseInput(std::string inputfile, CallStackInput &csinput,
+                      int InputType);
       /// This method intialize the call stack for our analysis
       void initializeCallStack(CallStackInput &csInput);
       ///
@@ -105,11 +119,7 @@ namespace ConAnal {
       ///
       void printDominators(Function &F, std::map<BasicBlock *,
                            std::set<BasicBlock *>> & dominators);
-      ///
-      void get_corruptedMap(Instruction *I);
 
-      ///
-      bool cmp_Maps(Instruction * I);
 
       //**********************************************************************
       // print (do not change this method)

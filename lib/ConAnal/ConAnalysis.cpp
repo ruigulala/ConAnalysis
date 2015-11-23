@@ -33,6 +33,41 @@
 using namespace llvm;
 using namespace ConAnal;
 
+const Function* ConAnalysis::findEnclosingFunc(const Value* V) {
+  if (const Argument* Arg = dyn_cast<Argument>(V)) {
+    return Arg->getParent();
+  }
+  if (const Instruction* I = dyn_cast<Instruction>(V)) {
+    return I->getParent()->getParent();
+  }
+  return NULL;
+}
+
+const MDNode* ConAnalysis::findVar(const Value* V, const Function* F) {
+  for (const_inst_iterator Iter = inst_begin(F), End = inst_end(F);
+      Iter != End; ++Iter) {
+    const Instruction* I = &*Iter;
+    if (const DbgDeclareInst* DbgDeclare = dyn_cast<DbgDeclareInst>(I)) {
+      if (DbgDeclare->getAddress() == V)
+        return DbgDeclare->getVariable();
+    } else if (const DbgValueInst* DbgValue = dyn_cast<DbgValueInst>(I)) {
+      if (DbgValue->getValue() == V)
+        return DbgValue->getVariable();
+    }
+  }
+  return NULL;
+}
+
+StringRef ConAnalysis::getOriginalName(const Value* V) {
+  const Function* F = findEnclosingFunc(V);
+  if (!F)
+    return V->getName();
+  const MDNode* Var = findVar(V, F);
+  if (!Var)
+    return "tmp";
+  return DIVariable(Var).getName();
+}
+
 void ConAnalysis::printList(std::list<Value *> &inputset) {
   errs() << "[ ";
   for (auto& iter : inputset) {
@@ -56,11 +91,28 @@ void ConAnalysis::printSet(std::set<BasicBlock *> &inputset) {
   }
 }
 
-void ConAnalysis::parseInput(std::string inputfile, CallStackInput &csinput) {
+bool ConAnalysis::add2CrptList(Value * crptVal) {
+  if (!corruptedIR_.count(&*crptVal)) {
+    orderedcorruptedIR_.push_back(&*crptVal);
+    corruptedIR_.insert(&*crptVal);
+    return true;
+  }
+  return false;
+}
+
+void ConAnalysis::parseInput(std::string inputfile, CallStackInput &csinput, 
+                             int InputType) {
+  char varName[300];
   std::ifstream ifs(inputfile);
   std::string line;
-  errs() << "Replaying input:\n";
-  errs() << "Read from file " << inputfile << "\n";
+  //errs() << "Replaying input:\n";
+  //errs() << "Read from file " << inputfile << "\n";
+  if (InputType == 1) {
+    std::getline(ifs, line);
+    sscanf(line.c_str(), "%s\n", varName);
+    corruptedVar_ = std::string(varName);
+    errs() << "Corrupted Var Name:" << corruptedVar_ << "\n";
+  }
   while (std::getline(ifs, line)) {
     char fileName[300];
     char funcName[300];
@@ -69,9 +121,9 @@ void ConAnalysis::parseInput(std::string inputfile, CallStackInput &csinput) {
     sscanf(line.c_str(), "%s (%[^ :]:%u)\n", funcName, fileName, &lineNum);
     std::string s1(fileName), s2(funcName);
     csinput.push_front(std::make_tuple(s1, s2, lineNum));
-    errs() << "Funcname:" << s2 << "\n";
-    errs() << "FileName:" << s1 << "\n";
-    errs() << "LineNum:" << lineNum << "\n\n";
+    //errs() << "Funcname:" << s2 << "\n";
+    //errs() << "FileName:" << s1 << "\n";
+    //errs() << "LineNum:" << lineNum << "\n\n";
     line.clear();
   }
 }
@@ -101,19 +153,29 @@ void ConAnalysis::initializeCallStack(CallStackInput &csinput) {
       errs() << "Begin:\n";
       (*listit)->print(errs());
       errs() << "\n";
-      if (isa<GetElementPtrInst>(*listit) || 
-          std::next(cs_it, 1) == csinput.end()) {
+      if (isa<GetElementPtrInst>(*listit)) {
+        StringRef cvar = getOriginalName((*listit)->getOperand(0));
+        StringRef cvar_compare = StringRef(corruptedVar_);
+        errs() << "geteleptr: " << cvar << "\n"; 
+        errs() << "corruptedVar_: " << corruptedVar_ << "\n"; 
+        if (!cvar_compare.count(cvar))
+          return;
+        (*listit)->print(errs());
         Function * func = &*(((*listit)->getParent())->getParent());
         errs() << func->getName() << "\n";
         callstack_.push_front(std::make_pair(&*func, *listit));
         break;
-      } else {
-        if (isa<CallInst>(*listit) || isa<InvokeInst>(*listit)) {
-          Function * func = &*(((*listit)->getParent())->getParent());
-          errs() << func->getName() << "\n";
-          callstack_.push_front(std::make_pair(&*func, *listit));
-          break;
-        }
+      } else if (std::next(cs_it, 1) == csinput.end()) {
+        (*listit)->print(errs());
+        Function * func = &*(((*listit)->getParent())->getParent());
+        errs() << func->getName() << "\n";
+        callstack_.push_front(std::make_pair(&*func, *listit));
+        break;
+      } else if (isa<CallInst>(*listit) || isa<InvokeInst>(*listit)) {
+        Function * func = &*(((*listit)->getParent())->getParent());
+        errs() << func->getName() << "\n";
+        callstack_.push_front(std::make_pair(&*func, *listit));
+        break;
       }
     }
     errs() << "\n";
@@ -128,10 +190,10 @@ bool ConAnalysis::runOnModule(Module &M) {
   errs() << "---------------------------------------\n";
   createMaps(M);
   printMap(M);
-  parseInput("part1_loc.txt", p1_input);
+  parseInput("part1_loc.txt", p1_input, 1);
   initializeCallStack(p1_input);
   part1_getCorruptedIRs(M);
-  parseInput("part2_loc.txt", p2_input);
+  parseInput("part2_loc.txt", p2_input, 2);
   part2_getDominantFrontiers(M, p2_input);
   return false;
 }
@@ -195,15 +257,12 @@ bool ConAnalysis::part1_getCorruptedIRs(Module &M) {
            << "\"\n";
     bool addFuncRet = false;
     addFuncRet = intra_dataflow_analysis(loc.first, loc.second, coparams);
-    
+
     errs() << "Callstack POP " << loc.first->getName() << "\n";
     callstack_.pop_front();
     if (addFuncRet && !callstack_.empty()) {
       auto& loc = callstack_.front();
-      if (!corruptedIR_.count(&*loc.second)) {
-        orderedcorruptedIR_.push_back(&*loc.second);
-        corruptedIR_.insert(&*loc.second);
-      }
+      add2CrptList(&*loc.second);
     }
   }
   errs() << "---------------------------------------\n";
@@ -213,29 +272,6 @@ bool ConAnalysis::part1_getCorruptedIRs(Module &M) {
   errs() << "\n";
   return false;
 }
-
-//void ConAnalysis::get_corruptedMap(Instruction * I) {
-  //Value * op_s;
-  //std::pair <uint32_t, uint32_t> struct_pair;
-  //uint32_t pairs[2];
-  //for (uint32_t op_i = 0, op_num = I->getNumOperands(); op_i < op_num - 1;
-      //op_i++) {
-    //Value *v = I->getOperand(op_i);
-    //if (v->hasName()) {
-      //op_s = v;
-    //}
-    //pairs[op_i] = v->getValueID();
-  //}
-  //struct_pair = std::make_pair(pairs[0], pairs[1]);
-  //corruptedMap_[op_s] = struct_pair;
-  //errs() << "--------------------------------\n";
-  //errs() << "          get corrupted         \n";
-  //errs() << "--------------------------------\n";
-  //for (auto maps : corruptedMap_) {
-    //errs() << maps.first->getName() << ": " << maps.second.first
-      //<< ", " <<  maps.second.second << "\n";
-  //}
-//}
 
 bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
                                           CorruptedArgs & corruptedparams) {
@@ -249,25 +285,34 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
           ++I;
         } else {
           if (!corruptedIR_.count(&*I)) {
-            //get_corruptedMap(&*I);
             orderedcorruptedIR_.push_back(&*I);
             corruptedIR_.insert(&*I);
+            errs() << "Adding corrupted variable: ";
+            errs() << "%" << ins2int_[&*I] << "\n";
             if (isa<GetElementPtrInst>(&*I)) {
               int op_num = I->getNumOperands();
-              GepIdxStruct * gep_idx = (GepIdxStruct *) 
+              GepIdxStruct * gep_idx = (GepIdxStruct *)
                   malloc(sizeof(GepIdxStruct));
               if (op_num == 3) {
-                gep_idx->idxType = 0;         
+                gep_idx->idxType = THREE_OP;
                 gep_idx->gepIdx.array_idx = std::make_pair(I->getOperand(1),
                                                            I->getOperand(2));
               } else if (op_num == 2) {
-                gep_idx->idxType = 0;         
+                gep_idx->idxType = TWO_OP;
                 gep_idx->gepIdx.idx = I->getOperand(1);
               } else {
                 errs() << "Error: Cannot parse GetElementPtrInst\n";
                 abort();
               }
-              corruptedPtr_[I->getOperand(1)].push_back(gep_idx);
+              Value * v = I->getOperand(0);
+              if (isa<Instruction>(v)) {
+                errs() << "Adding %" << ins2int_[cast<Instruction>(v)]
+                       << " to crptPtr list\n";
+                corruptedPtr_[v].push_back(gep_idx);
+              } else {
+                errs() << "Error: Outter pointer is not an instruction!\n";
+                abort(); 
+              }
             }
             rv = true;
           }
@@ -287,15 +332,18 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
   for (Function::arg_iterator args = F->arg_begin();
        args != F->arg_end(); ++args, ++op_i) {
     if (corruptedparams.count(op_i)) {
-      Value * v = args;
-      errs() << "Corrupted Arg: " << v->getName() << "\n";
-      if (!corruptedIR_.count(v)) {
-        orderedcorruptedIR_.push_back(v);
-        corruptedIR_.insert(v);
+      Value * calleeArgs = &*args;
+      errs() << "Corrupted Arg: " << calleeArgs->getName() << "\n";
+      if (corruptedIR_.count(corruptedparams[op_i])
+          && !corruptedIR_.count(calleeArgs)) {
+        errs() << "Add " << calleeArgs->getName() << " to list\n";
+        orderedcorruptedIR_.push_back(calleeArgs);
+        corruptedIR_.insert(calleeArgs);
       }
-      Value * corArgs = corruptedparams[op_i];
-      if (corruptedPtr_.count(&*corArgs)) {
-        corruptedPtr_[&*v] = corruptedPtr_[&*corArgs];
+      Value * callerArgs = corruptedparams[op_i];
+      if (corruptedPtr_.count(&*callerArgs)) {
+        errs() << "Add arg " << &*calleeArgs << " to crptPtr list\n";
+        corruptedPtr_[&*calleeArgs] = corruptedPtr_[&*callerArgs];
       }
     }
   }
@@ -305,8 +353,7 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
       Function * callee = cs.getCalledFunction();
       if (!callee) {
         errs() << "Couldn't get callee for instruction ";
-        I->print(errs());
-        errs() << "\n";
+        I->print(errs());errs() << "\n";
         continue;
       }
       // Skip all the llvm debug function
@@ -329,11 +376,10 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
            op_i++) {
         Value * v = I->getOperand(op_i);
         if (isa<Instruction>(v)) {
-          if (corruptedIR_.count(v)) {
-            errs() << "Param No." << op_i << " is corrupted.\n";
+          if (corruptedIR_.count(v) || corruptedPtr_.count(v)) {
+            errs() << "Param No." << op_i << " %" 
+            << ins2int_[dyn_cast<Instruction>(v)] << " contains corruption.\n";
             coparams[op_i] = &*v;
-            // TODO: Why a break here?
-            //break;
           }
         }
       }
@@ -344,48 +390,79 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
       bool addFuncRet = false;
       addFuncRet = intra_dataflow_analysis(callee, nullptr, coparams);
       if (addFuncRet) {
-        if (!corruptedIR_.count(&*I)) {
-          orderedcorruptedIR_.push_back(&*I);
-          corruptedIR_.insert(&*I);
-        }
-      } 
+        add2CrptList(&*I);
+      }
       errs() << "Callstack POP " << callstack_.front().first->getName() << "\n";
       callstack_.pop_front();
+    } else if (isa<GetElementPtrInst>(&*I)) {
+      int op_ii = I->getNumOperands();
+      if (corruptedPtr_.count(I->getOperand(0))) {
+        auto coPtrList = corruptedPtr_[I->getOperand(0)];
+        //I->print(errs()); errs() << "\n";
+        if (op_ii == 2) {
+          Value * gepIdx = I->getOperand(1);
+          for (auto it : coPtrList) {
+            if (it->idxType == TWO_OP) {
+              if (it->gepIdx.idx == gepIdx) {
+                errs() << "Add %" << ins2int_[&*I]<< " to crpt list\n";
+                add2CrptList(&*I);
+              }
+            }
+          }
+        } else if (op_ii == 3) {
+          auto gepIdxPair = std::make_pair(I->getOperand(1), I->getOperand(2));
+          for (auto it : coPtrList) {
+            if (it->idxType == THREE_OP) {
+              if (it->gepIdx.array_idx == gepIdxPair) {
+                errs() << "Add %" << ins2int_[&*I]<< " to crpt list\n";
+                add2CrptList(&*I);
+              }
+            }
+          }
+        }
+      }
+      for (uint32_t op_i = 0, op_num = I->getNumOperands(); op_i < op_num;
+           op_i++) {     
+        Value * v = I->getOperand(op_i);
+        if (corruptedIR_.count(v)) {
+          if (!corruptedIR_.count(&*I)) {
+            orderedcorruptedIR_.push_back(&*I);
+            corruptedIR_.insert(&*I);
+            errs() << "Add %" << ins2int_[&*I] << " to crpt list\n";
+            int op_ii = I->getNumOperands();
+            GepIdxStruct * gep_idx = (GepIdxStruct *)
+                malloc(sizeof(GepIdxStruct));
+            if (op_ii == 3) {
+              gep_idx->idxType = THREE_OP;
+              gep_idx->gepIdx.array_idx = std::make_pair(I->getOperand(1),
+                                                         I->getOperand(2));
+            } else if (op_ii == 2) {
+              gep_idx->idxType = 1;
+              gep_idx->gepIdx.idx = I->getOperand(1);
+            } else {
+              errs() << "Error: Cannot parse GetElementPtrInst\n";
+              abort();
+            }
+            corruptedPtr_[I->getOperand(1)].push_back(gep_idx);
+          }
+        }
+      }
     } else {
       for (uint32_t op_i = 0, op_num = I->getNumOperands(); op_i < op_num;
            op_i++) {
         Value * v = I->getOperand(op_i);
-          if (corruptedIR_.count(v)) {
-            if (!corruptedIR_.count(&*I)) {
-              orderedcorruptedIR_.push_back(&*I);
-              corruptedIR_.insert(&*I);
-              if (isa<StoreInst>(&*I)) {
-                Value * v = I->getOperand(1);
-                if (!corruptedIR_.count(v)) {
-                  orderedcorruptedIR_.push_back(v);
-                  corruptedIR_.insert(v);
-                }
-              } else if (isa<GetElementPtrInst>(&*I)) {
-                int op_ii = I->getNumOperands();
-                GepIdxStruct * gep_idx = (GepIdxStruct *) 
-                    malloc(sizeof(GepIdxStruct));
-                if (op_ii == 3) {
-                  gep_idx->idxType = 0;         
-                  gep_idx->gepIdx.array_idx = std::make_pair(I->getOperand(1),
-                                                             I->getOperand(2));
-                } else if (op_ii == 2) {
-                  gep_idx->idxType = 0;         
-                  gep_idx->gepIdx.idx = I->getOperand(1);
-                } else {
-                  errs() << "Error: Cannot parse GetElementPtrInst\n";
-                  abort();
-                }
-                corruptedPtr_[I->getOperand(1)].push_back(gep_idx);
-              }
-              rv = true;
+        if (corruptedIR_.count(v)) {
+          if (!corruptedIR_.count(&*I)) {
+            orderedcorruptedIR_.push_back(&*I);
+            corruptedIR_.insert(&*I);
+            if (isa<StoreInst>(&*I)) {
+              Value * v = I->getOperand(1);
+              add2CrptList(v);
             }
-            break;
+            rv = true;
           }
+          break;
+        }
       }
     }
   }

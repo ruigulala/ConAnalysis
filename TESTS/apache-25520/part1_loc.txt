@@ -1,2 +1,3 @@
-ap_buffered_log_writer (loggers/mod_log_config.c:1339)
+buf->outcnt
+ap_buffered_log_writer (loggers/mod_log_config.c:1342)
 set_buffered_logs_on (loggers/mod_log_config.c:1084)
