@@ -305,14 +305,8 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
                 abort();
               }
               Value * v = I->getOperand(0);
-              if (isa<Instruction>(v)) {
-                errs() << "Adding %" << ins2int_[cast<Instruction>(v)]
-                       << " to crptPtr list\n";
-                corruptedPtr_[v].push_back(gep_idx);
-              } else {
-                errs() << "Error: Outter pointer is not an instruction!\n";
-                abort();
-              }
+              errs() << "Adding " << &*v << " to crptPtr list\n";
+              corruptedPtr_[v].push_back(gep_idx);
             }
             rv = true;
           }
