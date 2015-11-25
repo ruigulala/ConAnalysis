@@ -1,0 +1,5 @@
+obj->cleanup
+decrement_refcount (mod_mem_cache.c:354)
+run_cleanups (apr_pools.c:1959)
+apr_pool_destroy (apr_pools.c:731)
+ap_process_http_connection (http_core.c:302)

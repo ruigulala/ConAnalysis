@@ -16,7 +16,7 @@
 
 #define DEBUG_TYPE "ConAnalysis"
 
-#include "../../include/ConAnal/ConAnalysis.h"
+#include "ConAnal/ConAnalysis.h"
 #include <cstdint>
 #include <fstream>
 #include <iostream>

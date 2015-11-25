@@ -17,6 +17,8 @@
 #ifndef INCLUDE_CONANAL_CONANALYSIS_H_
 #define INCLUDE_CONANAL_CONANALYSIS_H_
 
+#include "ConAnal/DangerOpLabel.h"
+
 #include <cstdint>
 #include <list>
 #include <set>
@@ -35,6 +37,7 @@
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include "llvm/Transforms/Utils/PromoteMemToReg.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/CallGraph.h"
@@ -139,6 +142,8 @@ class ConAnalysis : public ModulePass {
     // We don't modify the program, so we preserve all analyses
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.setPreservesAll();
+      /*AU.addRequiredTransitive<PromoteMemToReg>();*/
+      AU.addRequired<DOL>();
     }
 
  private:

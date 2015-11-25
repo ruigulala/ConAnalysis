@@ -4,14 +4,16 @@ set(CMAKE_BUILD_TYPE Release)
 
 find_package(LLVM CONFIG REQUIRED)
 
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
+#include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
+include_directories(include)
 
-add_subdirectory(lib/ConAnal)
 add_subdirectory(lib/DOL)
-add_subdirectory(TESTS/libsafe-cve-1125)
-add_subdirectory(TESTS/kernel-cve-2004-1235)
-add_subdirectory(TESTS/libvirt-cve-1447)
-add_subdirectory(TESTS/apache-25520)
+add_subdirectory(lib/ConAnal)
+add_subdirectory(TESTS/libsafe-cve-1125) # real exploit exists
+add_subdirectory(TESTS/kernel-cve-2004-1235) # real exploit exists
+add_subdirectory(TESTS/libvirt-cve-1447) # real exploit exists
+add_subdirectory(TESTS/apache-25520) # real exploit exists
+add_subdirectory(TESTS/apache-21287) # concurrency bug
 #add_subdirectory(TESTS/freebsd-cve-3527a)
 #add_subdirectory(TESTS/freebsd-osvdb-58543)
 
@@ -48,6 +50,12 @@ set_tests_properties (libvirt-cve-1447.test
 add_test(apache-25520.test "${PROJECT_BINARY_DIR}/TESTS/apache-25520/autotest.sh" "apache-25520")
 set_tests_properties (apache-25520.test
   PROPERTIES PASS_REGULAR_EXPRESSION "\\[ 1827 1828 1829 1830 1831 1115 1116 1117 1118 1127 1129 1130 1832 1874 1875 1877 1880 1896 1902 1903 1904 1905 1795 \\]"
+  )
+
+# test apache-25520 
+add_test(apache-21287.test "${PROJECT_BINARY_DIR}/TESTS/apache-21287/autotest.sh" "apache-21287")
+set_tests_properties (apache-21287.test
+  PROPERTIES PASS_REGULAR_EXPRESSION ""
   )
 
 # test freebsd-cve-3527a 
