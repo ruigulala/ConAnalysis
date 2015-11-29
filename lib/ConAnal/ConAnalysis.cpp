@@ -14,9 +14,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define DEBUG_TYPE "ConAnalysis"
-
 #include "ConAnal/ConAnalysis.h"
+
 #include <cstdint>
 #include <fstream>
 #include <iostream>
@@ -32,6 +31,17 @@
 
 using namespace llvm;
 using namespace ConAnal;
+
+void ConAnalysis::clearClassDataMember() {
+  corruptedVar_.clear();
+  ins2int_.clear();
+  sourcetoIRmap_.clear();
+  corruptedIR_.clear();
+  corruptedPtr_.clear();
+  orderedcorruptedIR_.clear();
+  callstack_.clear();
+  corruptedMap_.clear();
+}
 
 const Function* ConAnalysis::findEnclosingFunc(const Value* V) {
   if (const Argument* Arg = dyn_cast<Argument>(V)) {
@@ -100,19 +110,21 @@ bool ConAnalysis::add2CrptList(Value * crptVal) {
   return false;
 }
 
-void ConAnalysis::parseInput(std::string inputfile, CallStackInput &csinput,
-                             int InputType) {
+void ConAnalysis::parseInput(std::string inputfile, FuncFileLineList &csinput) {
   char varName[300];
   std::ifstream ifs(inputfile);
+  if (!ifs.is_open()) {
+    errs() << "Runtime Error: Couldn't find race_report.txt\n";
+    errs() << "Please check the file path\n";
+    abort();
+  }
   std::string line;
   //errs() << "Replaying input:\n";
   //errs() << "Read from file " << inputfile << "\n";
-  if (InputType == 1) {
-    std::getline(ifs, line);
-    sscanf(line.c_str(), "%s\n", varName);
-    corruptedVar_ = std::string(varName);
-    errs() << "Corrupted Var Name:" << corruptedVar_ << "\n";
-  }
+  std::getline(ifs, line);
+  sscanf(line.c_str(), "%s\n", varName);
+  corruptedVar_ = std::string(varName);
+  errs() << "Corrupted Var Name:" << corruptedVar_ << "\n";
   while (std::getline(ifs, line)) {
     char fileName[300];
     char funcName[300];
@@ -128,7 +140,7 @@ void ConAnalysis::parseInput(std::string inputfile, CallStackInput &csinput,
   }
 }
 
-void ConAnalysis::initializeCallStack(CallStackInput &csinput) {
+void ConAnalysis::initializeCallStack(FuncFileLineList &csinput) {
   errs() << "---------------------------------------\n";
   errs() << "       Initializing call stack\n";
   errs() << "---------------------------------------\n";
@@ -184,17 +196,29 @@ void ConAnalysis::initializeCallStack(CallStackInput &csinput) {
 }
 
 bool ConAnalysis::runOnModule(Module &M) {
-  CallStackInput p1_input, p2_input;
+  clearClassDataMember();
+  DOL &labels = getAnalysis<DOL>();
+  FuncFileLineList raceReport;
   errs() << "---------------------------------------\n";
   errs() << "             ConAnalysis               \n";
   errs() << "---------------------------------------\n";
   createMaps(M);
   printMap(M);
-  parseInput("part1_loc.txt", p1_input, 1);
-  initializeCallStack(p1_input);
-  part1_getCorruptedIRs(M);
-  parseInput("part2_loc.txt", p2_input, 2);
-  part2_getDominantFrontiers(M, p2_input);
+  parseInput("race_report.txt", raceReport);
+  initializeCallStack(raceReport);
+  getCorruptedIRs(M);
+  if (PtrDerefCheck) {
+    errs() << "---------------------------------------\n";
+    errs() << "   Pointer dereference check enabled   \n";
+    errs() << "---------------------------------------\n";
+    getDominators(M, labels.danPtrOps_);
+  }
+  if (DanFuncCheck) {
+    errs() << "---------------------------------------\n";
+    errs() << "   Dangerous function check enabled\n"    ; 
+    errs() << "---------------------------------------\n";
+    getDominators(M, labels.danFuncOps_);
+  }
   return false;
 }
 
@@ -246,9 +270,9 @@ bool ConAnalysis::printMap(Module &M) {
   return false;
 }
 
-bool ConAnalysis::part1_getCorruptedIRs(Module &M) {
+bool ConAnalysis::getCorruptedIRs(Module &M) {
   errs() << "---------------------------------------\n";
-  errs() << "       part1_getCorruptedIRs           \n";
+  errs() << "       Get Corrupted IRs           \n";
   errs() << "---------------------------------------\n";
   while (!callstack_.empty()) {
     auto& loc = callstack_.front();
@@ -256,8 +280,7 @@ bool ConAnalysis::part1_getCorruptedIRs(Module &M) {
     errs() << "Original Callstack: Go into \"" << loc.first->getName()
            << "\"\n";
     bool addFuncRet = false;
-    addFuncRet = intra_dataflow_analysis(loc.first, loc.second, coparams);
-
+    addFuncRet = intraDataflowAnalysis(loc.first, loc.second, coparams);
     errs() << "Callstack POP " << loc.first->getName() << "\n";
     callstack_.pop_front();
     if (addFuncRet && !callstack_.empty()) {
@@ -266,15 +289,15 @@ bool ConAnalysis::part1_getCorruptedIRs(Module &M) {
     }
   }
   errs() << "---------------------------------------\n";
-  errs() << "           Part 1 Result               \n";
+  errs() << "   Part 1: Dataflow Result             \n";
   errs() << "---------------------------------------\n";
   printList(orderedcorruptedIR_);
   errs() << "\n";
   return false;
 }
 
-bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
-                                          CorruptedArgs & corruptedparams) {
+bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
+                                        CorruptedArgs & corruptedparams) {
   bool rv = false;
   auto I = inst_begin(F);
   if (ins != nullptr) {
@@ -294,11 +317,11 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
               GepIdxStruct * gep_idx = reinterpret_cast<GepIdxStruct *>
                   (malloc(sizeof(GepIdxStruct)));
               if (op_num == 3) {
-                gep_idx->idxType = THREE_OP;
+                gep_idx->idxType = GEP_THREE_OP;
                 gep_idx->gepIdx.array_idx = std::make_pair(I->getOperand(1),
                                                            I->getOperand(2));
               } else if (op_num == 2) {
-                gep_idx->idxType = TWO_OP;
+                gep_idx->idxType = GEP_TWO_OP;
                 gep_idx->gepIdx.idx = I->getOperand(1);
               } else {
                 errs() << "Error: Cannot parse GetElementPtrInst\n";
@@ -382,7 +405,7 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
       errs() << "Callstack PUSH " << callee->getName() << "\n";
       callstack_.push_front(std::make_pair(callee, nullptr));
       bool addFuncRet = false;
-      addFuncRet = intra_dataflow_analysis(callee, nullptr, coparams);
+      addFuncRet = intraDataflowAnalysis(callee, nullptr, coparams);
       if (addFuncRet) {
         add2CrptList(&*I);
       }
@@ -396,7 +419,7 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
         if (op_ii == 2) {
           Value * gepIdx = I->getOperand(1);
           for (auto it : coPtrList) {
-            if (it->idxType == TWO_OP) {
+            if (it->idxType == GEP_TWO_OP) {
               if (it->gepIdx.idx == gepIdx) {
                 errs() << "Add %" << ins2int_[&*I]<< " to crpt list\n";
                 add2CrptList(&*I);
@@ -406,7 +429,7 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
         } else if (op_ii == 3) {
           auto gepIdxPair = std::make_pair(I->getOperand(1), I->getOperand(2));
           for (auto it : coPtrList) {
-            if (it->idxType == THREE_OP) {
+            if (it->idxType == GEP_THREE_OP) {
               if (it->gepIdx.array_idx == gepIdxPair) {
                 errs() << "Add %" << ins2int_[&*I]<< " to crpt list\n";
                 add2CrptList(&*I);
@@ -427,7 +450,7 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
             GepIdxStruct * gep_idx = reinterpret_cast<GepIdxStruct *>
                 (malloc(sizeof(GepIdxStruct)));
             if (op_ii == 3) {
-              gep_idx->idxType = THREE_OP;
+              gep_idx->idxType = GEP_THREE_OP;
               gep_idx->gepIdx.array_idx = std::make_pair(I->getOperand(1),
                                                          I->getOperand(2));
             } else if (op_ii == 2) {
@@ -463,40 +486,30 @@ bool ConAnalysis::intra_dataflow_analysis(Function * F, Instruction * ins,
   return rv;
 }
 
-bool ConAnalysis::part2_getDominantFrontiers(Module &M,
-                                             CallStackInput &csinput) {
+bool ConAnalysis::getDominators(Module &M, FuncFileLineList &danOps) {
   for (auto FuncIter = M.getFunctionList().begin();
        FuncIter != M.getFunctionList().end(); FuncIter++) {
     Function *F = FuncIter;
     std::map<BasicBlock *, std::set<BasicBlock *>> dominators;
-    for (auto part2_input = csinput.begin(); part2_input != csinput.end();
-         part2_input++) {
+    // ffl means fileFuncLine
+    for (auto fflTuple = danOps.begin(); fflTuple != danOps.end(); fflTuple++) {
       std::list<Value *> dominantfrontiers;
-      if (F->getName().str().compare(std::get<1>(*part2_input)) == 0) {
+      //errs() << F->getName() << " " << std::get<0>(*fflTuple) << "\n";
+      if (F->getName().str().compare(std::get<0>(*fflTuple)) == 0) {
         computeDominators(*F, dominators);
         //printDominators(*F, dominators);
         // filename, lineNum -> Instruction *
-        std::string filename = std::get<0>(*part2_input);
-        uint32_t line = std::get<2>(*part2_input);
+        std::string filename = std::get<1>(*fflTuple);
+        uint32_t line = std::get<2>(*fflTuple);
         auto mapitr = sourcetoIRmap_.find(std::make_pair(filename, line));
         if (mapitr == sourcetoIRmap_.end()) {
-          errs() << "ERROR: <" << std::get<0>(*part2_input) << " "
-                 << std::get<2>(*part2_input) << ">"
+          errs() << "ERROR: <" << std::get<1>(*fflTuple) << " "
+                 << std::get<2>(*fflTuple) << ">"
                  << " sourcetoIRmap_ look up failed.\n";
           abort();
         }
-        Instruction * danOpI = sourcetoIRmap_[std::make_pair(filename,
-                                                             line)].front();
-        errs() << "\nDangerous Operation Basic Block & Instruction\n";
-        errs() << danOpI->getParent()->getName() << " & "
-               << ins2int_[&*danOpI] << "\n";
-        if (MDNode *N = danOpI->getMetadata("dbg")) {
-          DILocation Loc(N);
-          errs() << F->getName().str() << " ("
-              << Loc.getFilename().str() << ":"
-              << Loc.getLineNumber() << ")\n";
-        }
-
+        auto fileLinePair = std::make_pair(filename, line);
+        Instruction * danOpI = sourcetoIRmap_[fileLinePair].front();
         auto it = dominators[danOpI->getParent()].begin();
         auto it_end = dominators[danOpI->getParent()].end();
         for (; it != it_end; ++it) {
@@ -506,12 +519,21 @@ bool ConAnalysis::part2_getDominantFrontiers(Module &M,
               break;
           }
         }
-        if (!part3_getFeasiblePath(M, dominantfrontiers))
+        if (!getFeasiblePath(M, dominantfrontiers))
           continue;
-        continue;
+        errs() << "Dangerous Operation Basic Block & Instruction\n";
+        errs() << danOpI->getParent()->getName() << " & "
+               << ins2int_[&*danOpI] << "\n";
+        if (MDNode *N = danOpI->getMetadata("dbg")) {
+          DILocation Loc(N);
+          errs() << F->getName().str() << " ("
+              << Loc.getFilename().str() << ":"
+              << Loc.getLineNumber() << ")\n";
+        }
+        errs() << "\n";
       }
       //errs() << "---------------------------------------\n";
-      //errs() << "           Part 2 Result               \n";
+      //errs() << "         Dominator Result              \n";
       //errs() << "---------------------------------------\n";
       //printList(dominantfrontiers);
       //errs() << "\n";
@@ -520,7 +542,7 @@ bool ConAnalysis::part2_getDominantFrontiers(Module &M,
   return false;
 }
 
-bool ConAnalysis::part3_getFeasiblePath(Module &M,
+bool ConAnalysis::getFeasiblePath(Module &M,
                                         std::list<Value *> &dominantfrontiers) {
   std::list<Value *> feasiblepath;
   for (auto& listitr : orderedcorruptedIR_) {
@@ -533,16 +555,14 @@ bool ConAnalysis::part3_getFeasiblePath(Module &M,
   if (feasiblepath.empty())
     return false;
   errs() << "---------------------------------------\n";
-  errs() << "           Part 3 Result               \n";
+  errs() << "   Part 3: Path Intersection Result    \n";
   errs() << "---------------------------------------\n";
   printList(feasiblepath);
-  errs() << "\n";
   return true;
 }
 
-// TODO(ruigulala): Change to C++11
 void ConAnalysis::computeDominators(Function &F, std::map<BasicBlock *,
-                       std::set<BasicBlock *>> & dominators) {
+                                    std::set<BasicBlock *>> & dominators) {
   std::vector<BasicBlock *> worklist;
   // For all the nodes but N0, initially set dom(N) = {all nodes}
   auto entry = F.begin();
@@ -567,9 +587,7 @@ void ConAnalysis::computeDominators(Function &F, std::map<BasicBlock *,
   while (!worklist.empty()) {
     BasicBlock * Z = worklist.front();
     worklist.erase(worklist.begin());
-
     std::set<BasicBlock *> intersects = dominators[*pred_begin(Z)];
-
     for (auto PI = pred_begin(Z), E = pred_end(Z);
         PI != E; ++PI) {
       std::set<BasicBlock *> newDoms;
@@ -585,7 +603,6 @@ void ConAnalysis::computeDominators(Function &F, std::map<BasicBlock *,
 
     if (dominators[Z] != intersects) {
       dominators[Z] = intersects;
-
       for (auto SI = succ_begin(Z), E = succ_end(Z); SI != E; ++SI) {
         if (*SI == entry) {
           continue;

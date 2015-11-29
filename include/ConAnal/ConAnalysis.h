@@ -17,8 +17,6 @@
 #ifndef INCLUDE_CONANAL_CONANALYSIS_H_
 #define INCLUDE_CONANAL_CONANALYSIS_H_
 
-#include "ConAnal/DangerOpLabel.h"
-
 #include <cstdint>
 #include <list>
 #include <set>
@@ -36,42 +34,27 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/PromoteMemToReg.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/CallGraph.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "ConAnal/DangerOpLabel.h"
+#include "ConAnal/typedefs.h"
 
-using namespace llvm;
-
-/* <functionName, fileName, lineNum> */
-typedef std::list<std::tuple<std::string, std::string,
-        uint32_t>> CallStackInput;
-
-typedef struct {
-  char fileName[200];
-  char funcName[100];
-  int lineNum;
-  Instruction * danOpI;
-} part2_input;
-
-typedef union PtrIdxUnion {
-  std::pair<Value *, Value *> array_idx;
-  Value * idx;
-} GepIdxUnion;
-
-/// idxType
-/// 0 means gep contains 3 operands, 1 means gep contains 2 operands.
+#ifdef DEBUG_TYPE
+#undef DEBUG_TYPE
+#define DEBUG_TYPE "con-analysis"
+#endif
 #define THREE_OP 0
 #define TWO_OP 1
-typedef struct PtrIdxStruct {
-  uint16_t idxType;
-  GepIdxUnion gepIdx;
-} GepIdxStruct;
-typedef std::map<uint32_t, Value *> CorruptedArgs;
+
+using namespace llvm;
 
 namespace ConAnal {
 class ConAnalysis : public ModulePass {
@@ -80,6 +63,8 @@ class ConAnalysis : public ModulePass {
     ConAnalysis() : ModulePass(ID) {
     }
 
+    /// Avoid funky problems of uninitialized data member
+    void clearClassDataMember();
     ///
     const Function* findEnclosingFunc(const Value* V);
     ///
@@ -94,10 +79,9 @@ class ConAnalysis : public ModulePass {
     void printSet(std::set<BasicBlock *> &inputset);
     /// This method reads the initial value of callstack from
     /// the associated file that belongs to each part of the analysis.
-    void parseInput(std::string inputfile, CallStackInput &csinput,
-                    int InputType);
+    void parseInput(std::string inputfile, FuncFileLineList &csinput);
     /// This method intialize the call stack for our analysis
-    void initializeCallStack(CallStackInput &csInput);
+    void initializeCallStack(FuncFileLineList &csInput);
     ///
     virtual bool runOnModule(Module &M);
     /// This method create two maps.
@@ -109,16 +93,15 @@ class ConAnalysis : public ModulePass {
     ///
     virtual bool printMap(Module &M);
     ///
-    virtual bool part1_getCorruptedIRs(Module &M);
+    virtual bool getCorruptedIRs(Module &M);
     ///
-    virtual bool intra_dataflow_analysis(Function *, Instruction *,
+    virtual bool intraDataflowAnalysis(Function *, Instruction *,
                                          CorruptedArgs & corruptedparams);
     ///
-    virtual bool part2_getDominantFrontiers(Module &M,
-                                            CallStackInput &csinput);
-    ///
-    virtual bool part3_getFeasiblePath(Module &M,
-                                       std::list<Value *> &dominantfrontiers);
+    virtual bool getDominators(Module &M, FuncFileLineList &csinput);
+    /// Returns the intersection between two lists
+    virtual bool getFeasiblePath(Module &M,
+                                 std::list<Value *> &dominantfrontiers);
     ///
     void computeDominators(Function &F, std::map<BasicBlock *,
                            std::set<BasicBlock *>> & dominators);
@@ -142,7 +125,6 @@ class ConAnalysis : public ModulePass {
     // We don't modify the program, so we preserve all analyses
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.setPreservesAll();
-      /*AU.addRequiredTransitive<PromoteMemToReg>();*/
       AU.addRequired<DOL>();
     }
 
@@ -159,5 +141,10 @@ class ConAnalysis : public ModulePass {
     std::list<std::pair<Function *, Instruction *>> callstack_;
     std::map<Value *, std::list<Value *>> corruptedMap_;
 };
+
+static cl::opt<bool> PtrDerefCheck("ptrderef",
+                                   cl::desc("do ptr deref check"));
+static cl::opt<bool> DanFuncCheck("danfunc",
+                                  cl::desc("do dangerous function check"));
 }// namespace ConAnal
 #endif  // INCLUDE_CONANAL_CONANALYSIS_H_

@@ -14,12 +14,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define DEBUG_TYPE "DOL"
+#include "ConAnal/DangerOpLabel.h"
 
-#include "../../include/ConAnal/DangerOpLabel.h"
+#include <fstream>
 
 using namespace llvm;
 using namespace ConAnal;
+
+void DOL::clearClassDataMember() {
+  danPtrOps_.clear();
+  danFuncOps_.clear();
+  danFuncs_.clear();
+}
 
 bool DOL::findDangerousOp(Module &M) {
   for (auto funciter = M.getFunctionList().begin();
@@ -29,9 +35,38 @@ bool DOL::findDangerousOp(Module &M) {
       if (isa<GetElementPtrInst>(*I)) {
         if (MDNode *N = I->getMetadata("dbg")) {
           DILocation Loc(N);
-          errs() << F->getName().str() << " ("
-              << Loc.getFilename().str() << ":"
-              << Loc.getLineNumber() << ")\n";
+          std::string fileName = Loc.getFilename().str();
+          std::string funcName = F->getName();
+          uint32_t lineNum = Loc.getLineNumber();
+          FuncFileLine opEntry = std::make_tuple(funcName, fileName, lineNum);
+          if (std::find(danPtrOps_.begin(), danPtrOps_.end(), opEntry) ==
+              danPtrOps_.end()) {
+            DEBUG(errs() << funcName << " (" << fileName
+                << ":" << lineNum << ")\n");
+            danPtrOps_.push_front(opEntry);
+          }
+        }
+      } else if (isa<CallInst>(&*I) || isa<InvokeInst>(&*I)) {
+        CallSite cs(&*I);
+        Function * callee = cs.getCalledFunction();
+        if (!callee) {
+          continue;
+        }
+        errs() << callee->getName().str() << "\n";
+        if (danFuncs_.count(callee->getName().str())) {
+          if (MDNode *N = I->getMetadata("dbg")) {
+            DILocation Loc(N);
+            std::string fileName = Loc.getFilename().str();
+            std::string funcName = F->getName();
+            uint32_t lineNum = Loc.getLineNumber();
+            FuncFileLine opEntry = std::make_tuple(funcName, fileName, lineNum);
+            if (std::find(danFuncOps_.begin(), danFuncOps_.end(), opEntry) ==
+              danFuncOps_.end()) {
+                errs() << funcName << " (" << fileName
+                    << ":" << lineNum << ")\n";
+                danFuncOps_.push_front(opEntry);
+            }
+          }
         }
       }
     }
@@ -39,7 +74,29 @@ bool DOL::findDangerousOp(Module &M) {
   return false;
 }
 
+void DOL::parseInput(std::string inputfile) {
+  char funcName[300];
+  std::ifstream ifs(inputfile);
+  if (!ifs.is_open()) {
+    errs() << "Runtime Error: Couldn't find dangerous_func_list.txt\n";
+    abort();
+  }
+  std::string line;
+  DEBUG(errs() << "Replaying the input file:\n");
+  DEBUG(errs() << "Read from file " << inputfile << "\n");
+  std::getline(ifs, line);
+
+  while (std::getline(ifs, line)) {
+    // Input format: funcName
+    sscanf(line.c_str(), "%s\n", funcName);
+    danFuncs_.insert(std::string(funcName));
+    line.clear();
+  }
+}
+
 bool DOL::runOnModule(Module &M) {
+  clearClassDataMember();
+  parseInput("dangerous_func_list.txt");
   findDangerousOp(M);
   return false;
 }
@@ -54,7 +111,7 @@ void DOL::print(std::ostream &O, const Module *M) const {
   O << "This is Concurrency Bug Analysis.\n";
 }
 
-char DOL::ID = 1;
+char DOL::ID = 0;
 // register the DOL class:
 //  - give it a command-line argument (DOL)
 //  - a name ("Dangerous Operation Labelling")
@@ -62,4 +119,4 @@ char DOL::ID = 1;
 //  - a flag saying this is not an analysis pass
 static RegisterPass<DOL> X("DOL",
                            "dangerous operation labelling",
-                           true, false);
+                           true, true);

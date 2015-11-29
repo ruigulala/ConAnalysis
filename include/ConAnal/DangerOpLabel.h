@@ -14,8 +14,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef DOL_H
-#define DOL_H
+#ifndef INCLUDE_CONANAL_DANGEROPLABEL_H_
+#define INCLUDE_CONANAL_DANGEROPLABEL_H_
+
+#include <list>
+#include <unistd.h>
 
 #include "llvm/Pass.h"
 #include "llvm/IR/Module.h"
@@ -32,35 +35,44 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "ConAnal/typedefs.h"
+
+#define DEBUG_TYPE "dol"
+
 using namespace llvm;
 
 namespace ConAnal {
-  class DOL : public ModulePass {
-    public:
-      static char ID; // Pass identification, replacement for typeid
-      DOL() : ModulePass(ID) {
-      }
-      virtual bool runOnModule(Module &M);
+class DOL : public ModulePass {
+ public:
+    static char ID; // Pass identification, replacement for typeid
+    FuncFileLineList danPtrOps_;
+    FuncFileLineList danFuncOps_;
+    StrList danFuncs_;
+    DOL() : ModulePass(ID) {
+    }
+    void clearClassDataMember();
+    void parseInput(std::string inputfile);
+    virtual bool runOnModule(Module &M);
 
-      //**********************************************************************
-      // print (do not change this method)
-      //
-      // If this pass is run with -f -analyze, this method will be called
-      // after each call to runOnModule.
-      //**********************************************************************
-      virtual void print(std::ostream &O, const Module *M) const;
+    //**********************************************************************
+    // print (do not change this method)
+    //
+    // If this pass is run with -f -analyze, this method will be called
+    // after each call to runOnModule.
+    //**********************************************************************
+    virtual void print(std::ostream &O, const Module *M) const;
 
-      //**********************************************************************
-      // getAnalysisUsage
-      //**********************************************************************
+    //**********************************************************************
+    // getAnalysisUsage
+    //**********************************************************************
 
-      // We don't modify the program, so we preserve all analyses
-      virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-        AU.setPreservesAll();
-      };
-    private:
-      bool findDangerousOp(Module &M);
-  };
-}
+    // We don't modify the program, so we preserve all analyses
+    virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+      AU.setPreservesAll();
+    }
 
-#endif
+ private:
+    bool findDangerousOp(Module &M);
+};
+}// namespace ConAnal
+#endif  // INCLUDE_CONANAL_DANGEROPLABEL_H_
