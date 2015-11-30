@@ -8,6 +8,7 @@
 #include <tuple>
 #include <utility>
 
+#include "llvm/IR/Function.h"
 #include "llvm/IR/Instruction.h"
 
 using namespace llvm;
@@ -19,7 +20,8 @@ namespace ConAnal {
 /* <functionName, fileName, lineNum> */
 typedef std::tuple<std::string, std::string, uint32_t> FuncFileLine;
 typedef std::list<FuncFileLine> FuncFileLineList;
-typedef std::set<std::string> StrList;
+typedef std::set<std::string> StrSet;
+typedef std::set<Function *> FuncSet;
 typedef std::map<uint32_t, Value *> CorruptedArgs;
 
 typedef struct {

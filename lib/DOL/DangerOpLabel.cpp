@@ -17,6 +17,7 @@
 #include "ConAnal/DangerOpLabel.h"
 
 #include <fstream>
+#include <iterator>
 
 using namespace llvm;
 using namespace ConAnal;
@@ -27,7 +28,37 @@ void DOL::clearClassDataMember() {
   danFuncs_.clear();
 }
 
-bool DOL::findDangerousOp(Module &M) {
+bool DOL::compareIndirectCall(CallSite * cs, FunctionType * fnType) {
+  if (cs == NULL || fnType == NULL) {
+    errs() << "Couldn't obtain FunctionType for indirect calls\n";
+    abort();
+  }
+  // Compare the arg number
+  // Tail call use no para style. Thus, we utilize extra call site info.
+  if (cs != NULL) {
+    if (cs->arg_size() != fnType->getNumParams())
+      return false;
+  }
+  // Compare the return type
+  Type * rtp1, * rtp2;
+  rtp1 = cs->getType();
+  rtp2 = fnType->getReturnType();
+  if (rtp1->getTypeID() != rtp2->getTypeID()) {
+    return false;
+  }
+  unsigned argSize = fnType->getNumParams();
+  // Compare the arg type within the arg list
+  for (unsigned i = 0; i < argSize; i++) {
+    Type * tp1, * tp2;
+    tp1 = cs->getArgument(i)->getType();
+    tp2 = fnType->getParamType(i);
+    if (tp1->getTypeID() != tp2->getTypeID())
+      return false;
+  }
+  return true;
+}
+
+bool DOL::findDangerousOp(Module &M, AliasAnalysis &AA, FuncSet &fnSet) {
   for (auto funciter = M.getFunctionList().begin();
       funciter != M.getFunctionList().end(); funciter++) {
     Function *F = funciter;
@@ -48,18 +79,41 @@ bool DOL::findDangerousOp(Module &M) {
         }
       } else if (isa<CallInst>(&*I) || isa<InvokeInst>(&*I)) {
         CallSite cs(&*I);
-        Function * callee = cs.getCalledFunction();
-        if (!callee) {
-          continue;
+        Function * calleeFn = cs.getCalledFunction();
+        Value * calleeVal = cs.getCalledValue();
+        StrSet fnNames;
+        // Skip the llvm.dbg function
+        if (!calleeFn) {
+          errs() << "Found indirect functions calls\n";
+          I->print(errs());
+          errs() << "\n";
+          // Compare the function type & params to find alias
+          for (auto fnI = fnSet.begin(); fnI != fnSet.end(); ++fnI) {
+            if (compareIndirectCall(&cs, (*fnI)->getFunctionType())) {
+              if (!AA.alias(calleeVal, *fnI))
+                continue;
+              fnNames.insert((*fnI)->getName().str());
+              errs() << "Resolving it to " << (*fnI)->getName().str() << "\n";
+            }
+          }
+        } else {
+          fnNames.insert(calleeFn->getName().str());
         }
-        errs() << callee->getName().str() << "\n";
-        if (danFuncs_.count(callee->getName().str())) {
+        if (calleeFn != NULL)
+          if ((calleeFn->getName().str()).compare(0, 5, "llvm.") == 0)
+            continue;
+        StrSet intersect;
+        set_intersection(fnNames.begin(), fnNames.end(),
+            danFuncs_.begin(), danFuncs_.end(),
+            std::inserter(intersect,intersect.begin()));
+        if (!fnNames.empty() && !intersect.empty()) { 
           if (MDNode *N = I->getMetadata("dbg")) {
             DILocation Loc(N);
-            std::string fileName = Loc.getFilename().str();
             std::string funcName = F->getName();
+            std::string fileName = Loc.getFilename().str();
             uint32_t lineNum = Loc.getLineNumber();
-            FuncFileLine opEntry = std::make_tuple(funcName, fileName, lineNum);
+            FuncFileLine opEntry = std::make_tuple(funcName, fileName, 
+                lineNum);
             if (std::find(danFuncOps_.begin(), danFuncOps_.end(), opEntry) ==
               danFuncOps_.end()) {
                 errs() << funcName << " (" << fileName
@@ -74,8 +128,7 @@ bool DOL::findDangerousOp(Module &M) {
   return false;
 }
 
-void DOL::parseInput(std::string inputfile) {
-  char funcName[300];
+uint32_t DOL::parseInput(std::string inputfile) {
   std::ifstream ifs(inputfile);
   if (!ifs.is_open()) {
     errs() << "Runtime Error: Couldn't find dangerous_func_list.txt\n";
@@ -84,20 +137,32 @@ void DOL::parseInput(std::string inputfile) {
   std::string line;
   DEBUG(errs() << "Replaying the input file:\n");
   DEBUG(errs() << "Read from file " << inputfile << "\n");
-  std::getline(ifs, line);
 
   while (std::getline(ifs, line)) {
-    // Input format: funcName
+    char funcName[300];
     sscanf(line.c_str(), "%s\n", funcName);
     danFuncs_.insert(std::string(funcName));
     line.clear();
   }
+  return danFuncs_.size();
 }
 
 bool DOL::runOnModule(Module &M) {
   clearClassDataMember();
-  parseInput("dangerous_func_list.txt");
-  findDangerousOp(M);
+  errs() << "---------------------------------------\n";
+  errs() << "                 DOL                   \n";
+  errs() << "---------------------------------------\n";
+  AliasAnalysis &AA = getAnalysis<AliasAnalysis>();
+  FuncSet allFuncs;
+  allFuncs.clear();
+  for (Module::iterator F = M.begin(); F != M.end(); ++F) {
+    if ((F->getName().str()).compare(0, 5, "llvm.") == 0)
+      continue;
+    allFuncs.insert(F);
+  }
+  uint32_t inNum = parseInput("dangerous_func_list.txt");
+  errs() << inNum << " dangerous functions from input file\n";
+  findDangerousOp(M, AA, allFuncs);
   return false;
 }
 

@@ -26,11 +26,14 @@
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CallSite.h"
 #include "llvm/IR/DebugInfo.h"
+#include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/InstIterator.h"
+#include "llvm/IR/Type.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
@@ -47,11 +50,12 @@ class DOL : public ModulePass {
     static char ID; // Pass identification, replacement for typeid
     FuncFileLineList danPtrOps_;
     FuncFileLineList danFuncOps_;
-    StrList danFuncs_;
+    StrSet danFuncs_;
     DOL() : ModulePass(ID) {
     }
     void clearClassDataMember();
-    void parseInput(std::string inputfile);
+    bool compareIndirectCall(CallSite * cs, FunctionType * fnType);
+    uint32_t parseInput(std::string inputfile);
     virtual bool runOnModule(Module &M);
 
     //**********************************************************************
@@ -69,10 +73,11 @@ class DOL : public ModulePass {
     // We don't modify the program, so we preserve all analyses
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.setPreservesAll();
+      AU.addRequired<AliasAnalysis>();
     }
 
  private:
-    bool findDangerousOp(Module &M);
+    bool findDangerousOp(Module &M, AliasAnalysis &AA, FuncSet &fnSet);
 };
 }// namespace ConAnal
 #endif  // INCLUDE_CONANAL_DANGEROPLABEL_H_

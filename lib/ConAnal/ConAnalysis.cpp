@@ -209,13 +209,13 @@ bool ConAnalysis::runOnModule(Module &M) {
   getCorruptedIRs(M);
   if (PtrDerefCheck) {
     errs() << "---------------------------------------\n";
-    errs() << "   Pointer dereference check enabled   \n";
+    errs() << "   Pointer dereference check result    \n";
     errs() << "---------------------------------------\n";
     getDominators(M, labels.danPtrOps_);
   }
   if (DanFuncCheck) {
     errs() << "---------------------------------------\n";
-    errs() << "   Dangerous function check enabled\n"    ; 
+    errs() << "   Dangerous function check result     \n"; 
     errs() << "---------------------------------------\n";
     getDominators(M, labels.danFuncOps_);
   }
@@ -493,7 +493,7 @@ bool ConAnalysis::getDominators(Module &M, FuncFileLineList &danOps) {
     std::map<BasicBlock *, std::set<BasicBlock *>> dominators;
     // ffl means fileFuncLine
     for (auto fflTuple = danOps.begin(); fflTuple != danOps.end(); fflTuple++) {
-      std::list<Value *> dominantfrontiers;
+      std::list<Value *> dominatorSubset;
       //errs() << F->getName() << " " << std::get<0>(*fflTuple) << "\n";
       if (F->getName().str().compare(std::get<0>(*fflTuple)) == 0) {
         computeDominators(*F, dominators);
@@ -514,12 +514,12 @@ bool ConAnalysis::getDominators(Module &M, FuncFileLineList &danOps) {
         auto it_end = dominators[danOpI->getParent()].end();
         for (; it != it_end; ++it) {
           for (auto i = (*it)->begin(); i != (*it)->end(); ++i) {
-            dominantfrontiers.push_back(&*i);
+            dominatorSubset.push_back(&*i);
             if (&*i == danOpI)
               break;
           }
         }
-        if (!getFeasiblePath(M, dominantfrontiers))
+        if (!getFeasiblePath(M, dominatorSubset))
           continue;
         errs() << "Dangerous Operation Basic Block & Instruction\n";
         errs() << danOpI->getParent()->getName() << " & "
@@ -555,7 +555,7 @@ bool ConAnalysis::getFeasiblePath(Module &M,
   if (feasiblepath.empty())
     return false;
   errs() << "---------------------------------------\n";
-  errs() << "   Part 3: Path Intersection Result    \n";
+  errs() << "   Part 3: Path Intersection           \n";
   errs() << "---------------------------------------\n";
   printList(feasiblepath);
   return true;
