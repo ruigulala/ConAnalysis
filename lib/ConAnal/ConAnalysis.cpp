@@ -342,9 +342,13 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
     assert(I != inst_end(F) && "Couldn't find callstack instruction.");
   }
   if (I == inst_end(F)) {
+    // Notice: Here, we relax the contraint of our data flow analysis a little
+    // bit. If the arguments of a call instruction is corrupted and we couldn't
+    // obtain its function body(external function), we'll treat the return
+    // value of the call instruction as corrupted. 
     errs() << "Couldn't obtain the source code of function \""
            << F->getName() << "\"\n";
-    return false;
+    return true;
   }
   // Handle the corrupted var passed in as function parameters
   uint32_t op_i = 0;
