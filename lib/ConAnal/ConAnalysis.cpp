@@ -131,7 +131,7 @@ void ConAnalysis::parseInput(std::string inputfile, FuncFileLineList &csinput) {
     uint32_t lineNum;
     // Input format: funcName (fileName:lineNum)
     sscanf(line.c_str(), "%s (%[^ :]:%u)\n", funcName, fileName, &lineNum);
-    std::string s1(fileName), s2(funcName);
+    std::string s1(funcName), s2(fileName);
     csinput.push_front(std::make_tuple(s1, s2, lineNum));
     //errs() << "Funcname:" << s2 << "\n";
     //errs() << "FileName:" << s1 << "\n";
@@ -145,18 +145,20 @@ void ConAnalysis::initializeCallStack(FuncFileLineList &csinput) {
   errs() << "       Initializing call stack\n";
   errs() << "---------------------------------------\n";
   for (auto cs_it = csinput.begin(); cs_it != csinput.end(); ++cs_it) {
-    std::string filename = std::get<0>(*cs_it);
+    std::string filename = std::get<1>(*cs_it);
+    errs() << filename << "\n";
     uint32_t line = std::get<2>(*cs_it);
     auto mapitr = sourcetoIRmap_.find(std::make_pair(filename, line));
     if (mapitr == sourcetoIRmap_.end()) {
-      errs() << "ERROR: <" << std::get<0>(*cs_it) << " "
+      errs() << "ERROR: <" << std::get<1>(*cs_it) << " "
              << std::get<2>(*cs_it) << ">"
              << " sourcetoIRmap_ look up failed.\n";
       abort();
     }
+    errs() << "Passed\n";
     std::list<Instruction *>& insList = mapitr->second;
     if (insList.begin() == insList.end()) {
-      errs() << "ERROR: <" << std::get<0>(*cs_it) << " "
+      errs() << "ERROR: <" << std::get<1>(*cs_it) << " "
              << std::get<2>(*cs_it) << ">"
              << " No matching instructions.\n";
       abort();
@@ -487,57 +489,58 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
 }
 
 bool ConAnalysis::getDominators(Module &M, FuncFileLineList &danOps) {
-  for (auto FuncIter = M.getFunctionList().begin();
-       FuncIter != M.getFunctionList().end(); FuncIter++) {
-    Function *F = FuncIter;
+  // ffl means FuncFileLine
+  for (auto fflTuple = danOps.begin(); fflTuple != danOps.end(); fflTuple++) {
     std::map<BasicBlock *, std::set<BasicBlock *>> dominators;
-    // ffl means fileFuncLine
-    for (auto fflTuple = danOps.begin(); fflTuple != danOps.end(); fflTuple++) {
-      std::list<Value *> dominatorSubset;
-      //errs() << F->getName() << " " << std::get<0>(*fflTuple) << "\n";
-      if (F->getName().str().compare(std::get<0>(*fflTuple)) == 0) {
-        computeDominators(*F, dominators);
-        //printDominators(*F, dominators);
-        // filename, lineNum -> Instruction *
-        std::string filename = std::get<1>(*fflTuple);
-        uint32_t line = std::get<2>(*fflTuple);
-        auto mapitr = sourcetoIRmap_.find(std::make_pair(filename, line));
-        if (mapitr == sourcetoIRmap_.end()) {
-          errs() << "ERROR: <" << std::get<1>(*fflTuple) << " "
-                 << std::get<2>(*fflTuple) << ">"
-                 << " sourcetoIRmap_ look up failed.\n";
-          abort();
-        }
-        auto fileLinePair = std::make_pair(filename, line);
-        Instruction * danOpI = sourcetoIRmap_[fileLinePair].front();
-        auto it = dominators[danOpI->getParent()].begin();
-        auto it_end = dominators[danOpI->getParent()].end();
-        for (; it != it_end; ++it) {
-          for (auto i = (*it)->begin(); i != (*it)->end(); ++i) {
-            dominatorSubset.push_back(&*i);
-            if (&*i == danOpI)
-              break;
-          }
-        }
-        if (!getFeasiblePath(M, dominatorSubset))
-          continue;
-        errs() << "Dangerous Operation Basic Block & Instruction\n";
-        errs() << danOpI->getParent()->getName() << " & "
-               << ins2int_[&*danOpI] << "\n";
-        if (MDNode *N = danOpI->getMetadata("dbg")) {
-          DILocation Loc(N);
-          errs() << F->getName().str() << " ("
-              << Loc.getFilename().str() << ":"
-              << Loc.getLineNumber() << ")\n";
-        }
-        errs() << "\n";
+    std::list<Value *> dominatorSubset;
+    std::string funcName = std::get<0>(*fflTuple);
+    std::string fileName = std::get<1>(*fflTuple);
+    uint32_t line = std::get<2>(*fflTuple);
+    InstructionList iList = sourcetoIRmap_[std::make_pair(fileName, line)];
+    Function *F = iList.front()->getParent()->getParent();
+    assert(F != NULL && "Couldn't obtain Function * for dangerous op");
+    if (F->getName().str().compare(std::get<0>(*fflTuple)) == 0) {
+      computeDominators(*F, dominators);
+      //printDominators(*F, dominators);
+      std::string filename = std::get<1>(*fflTuple);
+      uint32_t line = std::get<2>(*fflTuple);
+      // filename, lineNum -> Instruction *
+      auto mapitr = sourcetoIRmap_.find(std::make_pair(filename, line));
+      if (mapitr == sourcetoIRmap_.end()) {
+        errs() << "ERROR: <" << std::get<0>(*fflTuple) << " "
+               << std::get<2>(*fflTuple) << ">"
+               << " sourcetoIRmap_ look up failed.\n";
+        abort();
       }
-      //errs() << "---------------------------------------\n";
-      //errs() << "         Dominator Result              \n";
-      //errs() << "---------------------------------------\n";
-      //printList(dominantfrontiers);
-      //errs() << "\n";
+      auto fileLinePair = std::make_pair(filename, line);
+      Instruction * danOpI = sourcetoIRmap_[fileLinePair].front();
+      auto it = dominators[danOpI->getParent()].begin();
+      auto it_end = dominators[danOpI->getParent()].end();
+      for (; it != it_end; ++it) {
+        for (auto i = (*it)->begin(); i != (*it)->end(); ++i) {
+          dominatorSubset.push_back(&*i);
+          if (&*i == danOpI)
+            break;
+        }
+      }
+      if (!getFeasiblePath(M, dominatorSubset))
+        continue;
+      errs() << "Dangerous Operation Basic Block & Instruction\n";
+      errs() << danOpI->getParent()->getName() << " & "
+             << ins2int_[&*danOpI] << "\n";
+      if (MDNode *N = danOpI->getMetadata("dbg")) {
+        DILocation Loc(N);
+        errs() << F->getName().str() << " ("
+            << Loc.getFilename().str() << ":"
+            << Loc.getLineNumber() << ")\n";
+      }
+      errs() << "\n";
     }
+    //errs() << "---------------------------------------\n";
+    //errs() << "         Dominator Result              \n";
+    //errs() << "---------------------------------------\n";
+    //printList(dominantfrontiers);
+    //errs() << "\n";
   }
   return false;
 }

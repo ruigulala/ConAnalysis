@@ -20,6 +20,7 @@ namespace ConAnal {
 /* <functionName, fileName, lineNum> */
 typedef std::tuple<std::string, std::string, uint32_t> FuncFileLine;
 typedef std::list<FuncFileLine> FuncFileLineList;
+typedef std::list<Instruction *> InstructionList;
 typedef std::set<std::string> StrSet;
 typedef std::set<Function *> FuncSet;
 typedef std::map<uint32_t, Value *> CorruptedArgs;

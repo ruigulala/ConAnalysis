@@ -133,8 +133,7 @@ class ConAnalysis : public ModulePass {
     std::map<Instruction *, int> ins2int_;
     uint64_t ins_count_ = 1;
     /// <fileName, lineNum> -> list<Instruction *>
-    std::map<std::pair<std::string, uint32_t>,
-             std::list<Instruction *>> sourcetoIRmap_;
+    std::map<std::pair<std::string, uint32_t>, InstructionList> sourcetoIRmap_;
     std::set<Value *> corruptedIR_;
     std::map<Value *, std::list<GepIdxStruct *>> corruptedPtr_;
     std::list<Value *> orderedcorruptedIR_;
