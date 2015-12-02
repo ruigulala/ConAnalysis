@@ -160,7 +160,7 @@ bool DOL::runOnModule(Module &M) {
       continue;
     allFuncs.insert(F);
   }
-  uint32_t inNum = parseInput("dangerous_func_list.txt");
+  uint32_t inNum = parseInput("danMemFuncLists.txt");
   errs() << inNum << " dangerous functions from input file\n";
   findDangerousOp(M, AA, allFuncs);
   return false;
