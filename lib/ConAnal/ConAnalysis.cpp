@@ -205,7 +205,9 @@ bool ConAnalysis::runOnModule(Module &M) {
   errs() << "             ConAnalysis               \n";
   errs() << "---------------------------------------\n";
   createMaps(M);
+#ifdef DEBUG_TYPE
   printMap(M);
+#endif
   parseInput("race_report.txt", raceReport);
   initializeCallStack(raceReport);
   getCorruptedIRs(M);
@@ -236,6 +238,8 @@ bool ConAnalysis::createMaps(Module &M) {
         StringRef file = Loc.getFilename();
         sourcetoIRmap_[std::make_pair(file.str(), line)].push_back(&*I);
       } else {
+        //errs() << "Warning: Couldn't dbg Metadata for LLVM IR\n";
+        //I->print(errs()); errs() << "\n";
         if (isa<PHINode>(&*I) || isa<AllocaInst>(&*I) || isa<BranchInst>(&*I)) {
         } else if (isa<CallInst>(&*I) || isa<InvokeInst>(&*I)) {
         }
@@ -342,19 +346,21 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
     assert(I != inst_end(F) && "Couldn't find callstack instruction.");
   }
   if (I == inst_end(F)) {
-    // Notice: Here, we relax the contraint of our data flow analysis a little
-    // bit. If the arguments of a call instruction is corrupted and we couldn't
-    // obtain its function body(external function), we'll treat the return
-    // value of the call instruction as corrupted. 
+     
     errs() << "Couldn't obtain the source code of function \""
            << F->getName() << "\"\n";
-    return true;
   }
   // Handle the corrupted var passed in as function parameters
   uint32_t op_i = 0;
   for (Function::arg_iterator args = F->arg_begin();
        args != F->arg_end(); ++args, ++op_i) {
     if (corruptedparams.count(op_i)) {
+      // Notice: Here, we relax the contraint of our data flow analysis a
+      // little bit. If the arguments of a call instruction is corrupted and
+      // we couldn't obtain its function body(external function), we'll treat
+      // the return value of the call instruction as corrupted.
+      if (I == inst_end(F))
+        return true;
       Value * calleeArgs = &*args;
       errs() << "Corrupted Arg: " << calleeArgs->getName() << "\n";
       if (corruptedIR_.count(corruptedparams[op_i])
@@ -549,8 +555,8 @@ bool ConAnalysis::getDominators(Module &M, FuncFileLineList &danOps) {
   return false;
 }
 
-bool ConAnalysis::getFeasiblePath(Module &M,
-                                        std::list<Value *> &dominantfrontiers) {
+bool ConAnalysis::getFeasiblePath(Module &M, 
+    std::list<Value *> &dominantfrontiers) {
   std::list<Value *> feasiblepath;
   for (auto& listitr : orderedcorruptedIR_) {
     for (auto& listitr2 : dominantfrontiers) {
