@@ -22,6 +22,9 @@
 using namespace llvm;
 using namespace ConAnal;
 
+static cl::opt<std::string> danInputFile("danFuncFile",                         
+            cl::desc("dangerous function input file"), cl::Required);
+
 void DOL::clearClassDataMember() {
   danPtrOps_.clear();
   danFuncOps_.clear();
@@ -84,16 +87,17 @@ bool DOL::findDangerousOp(Module &M, AliasAnalysis &AA, FuncSet &fnSet) {
         StrSet fnNames;
         // Skip the llvm.dbg function
         if (!calleeFn) {
-          errs() << "Found indirect functions calls\n";
-          I->print(errs());
-          errs() << "\n";
+          DEBUG(errs() << "Found indirect functions calls\n");
+          DEBUG(I->print(errs()));
+          DEBUG(errs() << "\n");
           // Compare the function type & params to find alias
           for (auto fnI = fnSet.begin(); fnI != fnSet.end(); ++fnI) {
             if (compareIndirectCall(&cs, (*fnI)->getFunctionType())) {
               if (!AA.alias(calleeVal, *fnI))
                 continue;
               fnNames.insert((*fnI)->getName().str());
-              errs() << "Resolving it to " << (*fnI)->getName().str() << "\n";
+              DEBUG(errs() << "Resolving it to " << (*fnI)->getName().str() 
+                  << "\n");
             }
           }
         } else {
@@ -115,9 +119,9 @@ bool DOL::findDangerousOp(Module &M, AliasAnalysis &AA, FuncSet &fnSet) {
             FuncFileLine opEntry = std::make_tuple(funcName, fileName, 
                 lineNum);
             if (std::find(danFuncOps_.begin(), danFuncOps_.end(), opEntry) ==
-              danFuncOps_.end()) {
-                errs() << funcName << " (" << fileName
-                    << ":" << lineNum << ")\n";
+                danFuncOps_.end()) {
+              DEBUG(errs() << funcName << " (" << fileName
+                << ":" << lineNum << ")\n");
                 danFuncOps_.push_front(opEntry);
             }
           }
@@ -150,7 +154,7 @@ uint32_t DOL::parseInput(std::string inputfile) {
 bool DOL::runOnModule(Module &M) {
   clearClassDataMember();
   errs() << "---------------------------------------\n";
-  errs() << "                 DOL                   \n";
+  errs() << "           Start DOL Pass              \n";
   errs() << "---------------------------------------\n";
   AliasAnalysis &AA = getAnalysis<AliasAnalysis>();
   FuncSet allFuncs;
@@ -160,8 +164,9 @@ bool DOL::runOnModule(Module &M) {
       continue;
     allFuncs.insert(F);
   }
-  uint32_t inNum = parseInput("danMemFuncLists.txt");
-  errs() << inNum << " dangerous functions from input file\n";
+  uint32_t inNum = parseInput(danInputFile);
+  errs() << "Read " << inNum << " dangerous functions from " << danInputFile 
+    << "\n";
   findDangerousOp(M, AA, allFuncs);
   return false;
 }
@@ -175,6 +180,8 @@ bool DOL::runOnModule(Module &M) {
 void DOL::print(std::ostream &O, const Module *M) const {
   O << "This is Concurrency Bug Analysis.\n";
 }
+
+
 
 char DOL::ID = 0;
 // register the DOL class:

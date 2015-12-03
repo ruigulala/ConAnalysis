@@ -142,8 +142,9 @@ class ConAnalysis : public ModulePass {
 };
 
 static cl::opt<bool> PtrDerefCheck("ptrderef",
-                                   cl::desc("do ptr deref check"));
+    cl::desc("do ptr deref check"));
 static cl::opt<bool> DanFuncCheck("danfunc",
-                                  cl::desc("do dangerous function check"));
+    cl::desc("do dangerous function check"));
+
 }// namespace ConAnal
 #endif  // INCLUDE_CONANAL_CONANALYSIS_H_

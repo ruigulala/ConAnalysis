@@ -35,6 +35,7 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/CallGraph.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -79,5 +80,7 @@ class DOL : public ModulePass {
  private:
     bool findDangerousOp(Module &M, AliasAnalysis &AA, FuncSet &fnSet);
 };
+/*static cl::opt<std::string> danInputFile("danFuncFile",*/
+/*cl::desc("dangerous function input file"), cl::Required);*/
 }// namespace ConAnal
 #endif  // INCLUDE_CONANAL_DANGEROPLABEL_H_
