@@ -80,7 +80,5 @@ class DOL : public ModulePass {
  private:
     bool findDangerousOp(Module &M, AliasAnalysis &AA, FuncSet &fnSet);
 };
-/*static cl::opt<std::string> danInputFile("danFuncFile",*/
-/*cl::desc("dangerous function input file"), cl::Required);*/
 }// namespace ConAnal
 #endif  // INCLUDE_CONANAL_DANGEROPLABEL_H_
