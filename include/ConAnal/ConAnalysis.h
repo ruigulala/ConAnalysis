@@ -47,10 +47,10 @@
 #include "ConAnal/DangerOpLabel.h"
 #include "ConAnal/typedefs.h"
 
-#ifdef DEBUG_TYPE
-#undef DEBUG_TYPE
-#define DEBUG_TYPE "con-analysis"
-#endif
+/*#ifdef DEBUG_TYPE*/
+/*#undef DEBUG_TYPE*/
+/*#define DEBUG_TYPE "con-analysis"*/
+/*#endif*/
 #define THREE_OP 0
 #define TWO_OP 1
 
@@ -91,6 +91,8 @@ class ConAnalysis : public ModulePass {
     /// <FileName, lineNum> -> Instruction
     virtual bool createMaps(Module &M);
     ///
+    bool printMappedInstruction(Value * v);
+    ///
     virtual bool printMap(Module &M);
     ///
     virtual bool getCorruptedIRs(Module &M);
@@ -98,7 +100,7 @@ class ConAnalysis : public ModulePass {
     virtual bool intraDataflowAnalysis(Function *, Instruction *,
                                          CorruptedArgs & corruptedparams);
     ///
-    virtual bool getDominators(Module &M, FuncFileLineList &csinput);
+    virtual uint32_t getDominators(Module &M, FuncFileLineList &csinput);
     /// Returns the intersection between two lists
     virtual bool getFeasiblePath(Module &M,
                                  std::list<Value *> &dominantfrontiers);
@@ -140,11 +142,5 @@ class ConAnalysis : public ModulePass {
     std::list<std::pair<Function *, Instruction *>> callstack_;
     std::map<Value *, std::list<Value *>> corruptedMap_;
 };
-
-static cl::opt<bool> PtrDerefCheck("ptrderef",
-    cl::desc("do ptr deref check"));
-static cl::opt<bool> DanFuncCheck("danfunc",
-    cl::desc("do dangerous function check"));
-
 }// namespace ConAnal
 #endif  // INCLUDE_CONANAL_CONANALYSIS_H_

@@ -32,6 +32,11 @@
 using namespace llvm;
 using namespace ConAnal;
 
+static cl::opt<bool> PtrDerefCheck("ptrderef",
+    cl::desc("Enable ptr deref check"));                                            
+static cl::opt<bool> DanFuncCheck("danfunc",
+    cl::desc("do dangerous function check"));                                   
+                                                                                
 void ConAnalysis::clearClassDataMember() {
   corruptedVar_.clear();
   ins2int_.clear();
@@ -79,15 +84,18 @@ StringRef ConAnalysis::getOriginalName(const Value* V) {
 }
 
 void ConAnalysis::printList(std::list<Value *> &inputset) {
-  DEBUG(errs() << "[ ");
+  errs() << "[ ";
   for (auto& iter : inputset) {
     if (isa<Instruction>(iter)) {
-      DEBUG(errs() << ins2int_[cast<Instruction>(iter)] << " ");
+      errs() << ins2int_[cast<Instruction>(iter)] << " ";
     } else {
-      DEBUG(errs() << iter->getName() << " ");
+      errs() << iter->getName() << " ";
     }
   }
-  DEBUG(errs() << "]\n");
+  errs() << "]\n";
+  for (auto& iter : inputset) {
+    printMappedInstruction(iter); 
+  }
 }
 
 void ConAnalysis::printSet(std::set<BasicBlock *> &inputset) {
@@ -189,6 +197,7 @@ void ConAnalysis::initializeCallStack(FuncFileLineList &csinput) {
       }
     }
   }
+  errs() << "\n";
   return;
 }
 
@@ -205,17 +214,25 @@ bool ConAnalysis::runOnModule(Module &M) {
   initializeCallStack(raceReport);
   getCorruptedIRs(M);
   if (PtrDerefCheck) {
-    errs() << "***************************************\n";
+    errs() << "*********************************************************\n";
     errs() << "   Pointer Dereference Analysis Result \n";
-    errs() << "***************************************\n";
-    getDominators(M, labels.danPtrOps_);
+    errs() << "   # of static pointer deference statements: "
+      << labels.danPtrOps_.size() << "\n";
+    uint32_t vulNum = getDominators(M, labels.danPtrOps_);
+    errs() << "\n   # of detected potential vulnerabilities: "
+      << vulNum << "\n";
+    errs() << "*********************************************************\n";
     errs() << "\n";
   }
   if (DanFuncCheck) {
-    errs() << "***************************************\n";
+    errs() << "*********************************************************\n";
     errs() << "   Dangerous Function Analysis Result  \n"; 
-    errs() << "***************************************\n";
-    getDominators(M, labels.danFuncOps_);
+    errs() << "   # of static dangerous function statements: "
+      << labels.danFuncs_.size() << "\n";
+    uint32_t vulNum = getDominators(M, labels.danFuncOps_);
+    errs() << "\n   # of detected potential vulnerabilities: "
+      << vulNum << "\n";
+    errs() << "*********************************************************\n";
     errs() << "\n";
   }
   return false;
@@ -233,6 +250,8 @@ bool ConAnalysis::createMaps(Module &M) {
         StringRef file = Loc.getFilename();
         sourcetoIRmap_[std::make_pair(file.str(), line)].push_back(&*I);
       } else {
+        // There might be a lot of generated LLVM IRs couldn't map to any
+        // line of the source code.
         //errs() << "Warning: Couldn't dbg Metadata for LLVM IR\n";
         //I->print(errs()); errs() << "\n";
         if (isa<PHINode>(&*I) || isa<AllocaInst>(&*I) || isa<BranchInst>(&*I)) {
@@ -242,6 +261,28 @@ bool ConAnalysis::createMaps(Module &M) {
     }
   }
   return false;
+}
+
+bool ConAnalysis::printMappedInstruction(Value * v) {
+  if (isa<Instruction>(v)) {
+    Instruction * i = dyn_cast<Instruction>(v);
+    errs() << "%" << ins2int_[i] << ":\t";
+    errs() << Instruction::getOpcodeName(i->getOpcode()) << "\t";
+    for (uint32_t op_i = 0; op_i < i->getNumOperands(); op_i++) {
+      Value * v = i->getOperand(op_i);
+      if (isa<Instruction>(v)) {
+        errs() << "%" << ins2int_[cast<Instruction>(v)] << " ";
+      } else if (v->hasName()) {
+        errs() << v->getName() << " ";
+      } else {
+        errs() << "XXX ";
+      }
+    }
+  } else {
+    errs() << "arg " << v->getName() << "\n";
+  }
+  errs() << "\n";
+  return true;
 }
 
 bool ConAnalysis::printMap(Module &M) {
@@ -287,11 +328,9 @@ bool ConAnalysis::getCorruptedIRs(Module &M) {
       add2CrptList(&*loc.second);
     }
   }
-  DEBUG(errs() << "---------------------------------------\n");
-  DEBUG(errs() << "   Part 1: Dataflow Result             \n");
-  DEBUG(errs() << "---------------------------------------\n");
+  errs() << "---- Part 1: Dataflow Result ---- \n";
   printList(orderedcorruptedIR_);
-  DEBUG(errs() << "\n");
+  errs() << "\n";
   return false;
 }
 
@@ -490,7 +529,8 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
   return rv;
 }
 
-bool ConAnalysis::getDominators(Module &M, FuncFileLineList &danOps) {
+uint32_t ConAnalysis::getDominators(Module &M, FuncFileLineList &danOps) {
+  uint32_t rv = 0;
   // ffl means FuncFileLine
   for (auto fflTuple = danOps.begin(); fflTuple != danOps.end(); fflTuple++) {
     std::map<BasicBlock *, std::set<BasicBlock *>> dominators;
@@ -536,6 +576,7 @@ bool ConAnalysis::getDominators(Module &M, FuncFileLineList &danOps) {
             << " Location: " << "(" << Loc.getFilename().str() << ":"
             << Loc.getLineNumber() << ")\n";
       }
+      rv++;
     }
     //errs() << "---------------------------------------\n";
     //errs() << "         Dominator Result              \n";
@@ -543,7 +584,7 @@ bool ConAnalysis::getDominators(Module &M, FuncFileLineList &danOps) {
     //printList(dominantfrontiers);
     //errs() << "\n";
   }
-  return false;
+  return rv;
 }
 
 bool ConAnalysis::getFeasiblePath(Module &M, 
@@ -558,7 +599,7 @@ bool ConAnalysis::getFeasiblePath(Module &M,
   }
   if (feasiblepath.empty())
     return false;
-  DEBUG(errs() << "---- Part 3: Path Intersection ----\n");
+  errs() << "\n---- Part 3: Path Intersection ----\n";
   printList(feasiblepath);
   return true;
 }
