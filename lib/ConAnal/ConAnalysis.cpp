@@ -13,6 +13,7 @@
 // the system vulnerable to malicious actions.
 //
 //===----------------------------------------------------------------------===//
+#define DEBUG_TYPE "con-analysis"
 
 #include "ConAnal/ConAnalysis.h"
 
@@ -33,10 +34,10 @@ using namespace llvm;
 using namespace ConAnal;
 
 static cl::opt<bool> PtrDerefCheck("ptrderef",
-    cl::desc("Enable ptr deref check"));                                            
+    cl::desc("Enable ptr deref check"));
 static cl::opt<bool> DanFuncCheck("danfunc",
-    cl::desc("do dangerous function check"));                                   
-                                                                                
+    cl::desc("do dangerous function check"));
+
 void ConAnalysis::clearClassDataMember() {
   corruptedVar_.clear();
   ins2int_.clear();
@@ -169,33 +170,47 @@ void ConAnalysis::initializeCallStack(FuncFileLineList &csinput) {
       abort();
     }
     for (auto listit = insList.begin(); listit != insList.end(); ++listit) {
-      DEBUG((*listit)->print(errs()));
-      DEBUG(errs() << "\n");
       if (isa<GetElementPtrInst>(*listit)) {
         StringRef cvar = getOriginalName((*listit)->getOperand(0));
         StringRef cvar_compare = StringRef(corruptedVar_);
-        DEBUG(errs() << "geteleptr: " << cvar << "\n");
+        DEBUG(errs() << "geteleptr var: " << cvar << "\n");
         errs() << "corruptedVar_: " << corruptedVar_ << "\n";
         if (!cvar_compare.count(cvar))
-          return;
-        DEBUG((*listit)->print(errs()));
+          continue;
+        DEBUG((*listit)->print(errs()); errs() << "\n";);
         Function * func = &*(((*listit)->getParent())->getParent());
-        DEBUG(errs() << func->getName() << "\n");
-        callstack_.push_front(std::make_pair(&*func, *listit));
-        break;
-      } else if (std::next(cs_it, 1) == csinput.end()) {
-        DEBUG((*listit)->print(errs()));
-        Function * func = &*(((*listit)->getParent())->getParent());
-        DEBUG(errs() << func->getName() << "\n");
+        DEBUG(errs() << func->getName() << " contains the above ins\n");
         callstack_.push_front(std::make_pair(&*func, *listit));
         break;
       } else if (isa<CallInst>(*listit) || isa<InvokeInst>(*listit)) {
         Function * func = &*(((*listit)->getParent())->getParent());
-        DEBUG(errs() << func->getName() << "\n");
+        DEBUG((*listit)->print(errs()); errs() << "\n";);
+        DEBUG(errs() << func->getName() << " contains the above ins\n");
         callstack_.push_front(std::make_pair(&*func, *listit));
         break;
+      } else {
+        Function * func = &*(((*listit)->getParent())->getParent());
+        if (std::next(cs_it, 1) == csinput.end()) {
+          DEBUG((*listit)->print(errs()); errs() << "\n";);
+          DEBUG(errs() << func->getName() << " contains the above ins\n");
+          callstack_.push_front(std::make_pair(&*func, *listit));
+          break;
+        }
+        else {
+          for (uint32_t op_i = 0; op_i < (*listit)->getNumOperands(); op_i++) {
+            StringRef cvar = getOriginalName((*listit)->getOperand(op_i));
+            StringRef cvar_compare = StringRef(corruptedVar_);
+            if (!cvar_compare.count(cvar))
+              continue;
+            DEBUG((*listit)->print(errs()); errs() << "\n";);
+            DEBUG(errs() << func->getName() << " contains the above ins\n");
+            callstack_.push_front(std::make_pair(&*func, *listit));
+            break;
+          }
+        }
       }
     }
+    DEBUG(errs() << "\n");
   }
   errs() << "\n";
   return;
@@ -328,6 +343,7 @@ bool ConAnalysis::getCorruptedIRs(Module &M) {
       add2CrptList(&*loc.second);
     }
   }
+  DEBUG(errs() << "\n");
   errs() << "---- Part 1: Dataflow Result ---- \n";
   printList(orderedcorruptedIR_);
   errs() << "\n";

@@ -14,6 +14,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#define DEBUG_TYPE "dol"
+
 #include "ConAnal/DangerOpLabel.h"
 
 #include <fstream>
@@ -168,6 +170,7 @@ bool DOL::runOnModule(Module &M) {
   errs() << "Read " << inNum << " dangerous functions from " << danInputFile 
     << "\n";
   findDangerousOp(M, AA, allFuncs);
+  errs() << "\n";
   return false;
 }
 

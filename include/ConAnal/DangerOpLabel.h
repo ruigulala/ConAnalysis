@@ -41,8 +41,6 @@
 
 #include "ConAnal/typedefs.h"
 
-#define DEBUG_TYPE "dol"
-
 using namespace llvm;
 
 namespace ConAnal {

@@ -47,13 +47,6 @@
 #include "ConAnal/DangerOpLabel.h"
 #include "ConAnal/typedefs.h"
 
-/*#ifdef DEBUG_TYPE*/
-/*#undef DEBUG_TYPE*/
-/*#define DEBUG_TYPE "con-analysis"*/
-/*#endif*/
-#define THREE_OP 0
-#define TWO_OP 1
-
 using namespace llvm;
 
 namespace ConAnal {
