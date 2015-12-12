@@ -1,4 +1,6 @@
 Debug/
 build/
 .ycm*
-.o
+*.o
+.color_coded
+*.ll
