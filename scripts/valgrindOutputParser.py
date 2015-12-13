@@ -10,11 +10,16 @@ A typical valgrind race report line
 ==7832==    at 0x8068BB7: ap_buffered_log_writer (mod_log_config.c:1345)
 will be changed to
 ap_buffered_log_writer (mod_log_config.c:1345)
+
+Notice that, right now, we're only allowing 1 race record. Because different
+race records may require different binaries(called by main using subprocess). 
+Currently, our LLVM pass can only takes in one bc file.
 '''
 
 # All the defined regular expressions
 regCallStackLine = re.compile("==[0-9]*==[\s]*(at|by) "
-        "[0-9A-Fx]*: ([a-zA-Z0-9_]*) (\([a-zA-Z0-9_\.]*:[0-9]*\))")
+        "[0-9A-Fx]*: ([a-zA-Z0-9_:~]*)(\([0-9A-Za-z\*_, ]*\))? "
+        "(\([a-zA-Z0-9_\.]*:[0-9]*\))")
 regLineBreak = re.compile("==[0-9]*==[\s]*$")
 regReportStart = re.compile("==[0-9]*== (Possible data race during read|"
         "This conflicts with a previous read)")
@@ -34,9 +39,12 @@ def main(args):
         if reportStart:
             ifReportStart = True
         elif callStackLine:
-            if ifReportStart and callStackLine.group(2) != "mythread_wrapper":
-                fout.write(callStackLine.group(2) + " " 
-                    + callStackLine.group(3) + "\n")
+            if ifReportStart:
+                if callStackLine.group(2) != "mythread_wrapper":
+                    fout.write(callStackLine.group(2) + " " 
+                        + callStackLine.group(4) + "\n")
+                else:
+                    break
         elif lineBreak:
             if ifReportStart:
                 ifReportStart = False
