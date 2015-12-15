@@ -37,6 +37,8 @@ static cl::opt<bool> PtrDerefCheck("ptrderef",
     cl::desc("Enable ptr deref check"));
 static cl::opt<bool> DanFuncCheck("danfunc",
     cl::desc("do dangerous function check"));
+static cl::opt<std::string> RaceReportInput("raceReport",
+    cl::desc("race report input file"), cl::Required);
 
 void ConAnalysis::clearClassDataMember() {
   corruptedVar_.clear();
@@ -160,7 +162,8 @@ void ConAnalysis::initializeCallStack(FuncFileLineList &csinput) {
       errs() << "ERROR: <" << std::get<1>(*cs_it) << " "
              << std::get<2>(*cs_it) << ">"
              << " sourcetoIRmap_ look up failed.\n";
-      abort();
+      continue; 
+      // abort();
     }
     std::list<Instruction *>& insList = mapitr->second;
     if (insList.begin() == insList.end()) {
@@ -225,7 +228,7 @@ bool ConAnalysis::runOnModule(Module &M) {
   errs() << "---------------------------------------\n";
   createMaps(M);
   printMap(M);
-  parseInput("race_report.txt", raceReport);
+  parseInput(RaceReportInput, raceReport);
   initializeCallStack(raceReport);
   getCorruptedIRs(M);
   if (PtrDerefCheck) {
