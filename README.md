@@ -55,14 +55,15 @@ After this step, under path-to-llvm-source/build/bin, you'll see all the executa
 ```
 sudo make install
 ```
-## Install whole-program-llvm
+## Install submodules
 Currently, we're using whole-program-llvm to build the target project into one single llvm bitcode file.
 We're using whole-program-llvm as a submodule of our project. The following are the steps to set up whole-program-llvm.
+Other than this, we also using another git repository to reference all the source code of bugs of analyzed.
 
-* Initialize whole-program-llvm
+* Initialize and update submodules
 ```
-cd path-to-ConAnalysis-source/whole-program-llvm
-git submodule init && git submodule update
+cd path-to-ConAnalysis-source
+git submodule update --init --recursive
 ```
 Now, you'll see the source code under this folder.
 
