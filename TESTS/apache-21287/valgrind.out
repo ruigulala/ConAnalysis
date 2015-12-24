@@ -1,3 +1,4 @@
+==5017== ----------------------------------------------------------------
 ==5017== Possible data race during write of size 4 at 0x4666BF4 by thread #9
 ==5017== Locks held: 1, at address 0x43C0534
 ==5017==    at 0x80662D7: remove_entity (mod_mem_cache.c:653)
@@ -37,3 +38,4 @@
 ==5017==    by 0x808E7E2: ap_invoke_handler (config.c:401)
 ==5017==    by 0x8077356: ap_process_request (http_request.c:288)
 ==5017==  Block was alloc'd by thread #8
+==5017==

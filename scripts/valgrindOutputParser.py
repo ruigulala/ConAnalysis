@@ -1,7 +1,10 @@
 #!/usr/bin/python2.7
 import argparse
+import logging
 import re
+import signal
 import sys
+import time
 
 '''
 This python script transfers valgrind race report to the format required by
@@ -20,17 +23,110 @@ regCallStackLine = re.compile("==[0-9]*==[\s]*(at|by) "
 # Detects the output of a racing variable
 regRacingVar = re.compile('==[0-9]*==  (Location|Address) [a-z0-9 ]*'
         '"([0-9A-Za-z_\.\->]*)"')
-        #'.*')
 # Detects the start of a variable read
-regReportRStart = re.compile("==[0-9]*== (Possible data race during read|"
+regReadStart = re.compile("==[0-9]*== (Possible data race during read|"
         "This conflicts with a previous read).*")
 # Detects the start of a race report block
-regReportBStart = re.compile("==[0-9]*== --------------------------------"
+regBlockStart = re.compile("==[0-9]*== --------------------------------"
         "--------------------------------")
 # Detects a line break
 regLineBreak = re.compile("==[0-9]*==[\s]*$")
+# Detects the end of a block
+regBlockEnd = re.compile("==[0-9]*==  Block was alloc.*$")
+# Detects the end of read
+regReadEnd = re.compile("==[0-9]*==  Address.*$")
 
-def main(args):
+def signal_handler(signal, frame):
+    print('Gracefully exit!')
+    sys.exit(0)
+
+def writeResult2File(fout, resultList):
+    for entry in resultList:
+        fout.write("%s" % entry)
+
+def checkBlockIntegrity(baseIndex, fp):
+    boudaryIndex = baseIndex
+    for i, line in enumerate(fp, 1):
+        if i >= baseIndex:
+            blockEnd = regLineBreak.match(line)
+            if blockEnd:
+                boudaryIndex = i
+    return boudaryIndex
+
+def runOverNight(args):
+    baseIndex = 0
+    curIndex = 0
+    outFileNo = 0
+    flagBlockStart = False
+    flagReadStart = False
+
+    try:
+        fp = open(args.raceReportIn, "r")
+    except IOError:
+        sys.stderr.write('Error: Input file does not exist!\n')
+        exit(1)
+
+    resultList = []
+    while True:
+        boudaryIndex = checkBlockIntegrity(baseIndex, fp)
+        logging.debug("End boudary is " + str(boudaryIndex))
+        fp.seek(0)
+        for i, line in enumerate(fp, 1):
+            if i < baseIndex:
+                continue
+            elif i >= boudaryIndex:
+                time.sleep(5)
+                break
+            blockStart = regBlockStart.match(line)
+            blockEnd = regBlockEnd.match(line)
+            readStart = regReadStart.match(line)
+            readEnd = regReadEnd.match(line)
+            callStackLine = regCallStackLine.match(line)
+            lineBreak = regLineBreak.match(line)
+            racingVar = regRacingVar.match(line)
+            if blockStart:
+                logging.debug('Line ' + str(i) + ": Block Start")
+                flagBlockStart = True
+            elif readStart:
+                logging.debug('Line ' + str(i) + ": Read Start")
+                flagReadStart = True
+            elif readEnd:
+                logging.debug('Line ' + str(i) + ": Read End")
+                flagReadStart = False
+            elif callStackLine:
+                if flagReadStart and flagBlockStart:
+                    if callStackLine.group(2) != "mythread_wrapper":
+                        logging.debug('Line ' + str(i) + ": Writing Content")
+                        resultList.append(callStackLine.group(2) + " "
+                                + callStackLine.group(4) + "\n")
+                    else:
+                        flagReadStart = False
+            elif racingVar:
+                logging.debug('Line ' + str(i) + ": Racing Variable")
+                if len(resultList) > 0:
+                    fout = open(args.raceReportOut + str(outFileNo), "w")
+                    flagReadStart = False
+                    writeResult2File(fout, resultList)
+                    fout.close()
+                    del resultList[:]
+                flagBlockStart = False
+                flagReadStart = False
+            elif blockEnd:
+                logging.debug('Line ' + str(i) + ": Line Break Block Ends")
+                flagBlockStart = False
+                flagReadStart = False
+                if len(resultList) > 0:
+                    fout = open(args.raceReportOut + str(outFileNo), "w")
+                    flagReadStart = False
+                    outFileNo += 1
+                    writeResult2File(fout, resultList)
+                    fout.close()
+                    del resultList[:]
+        if not flagBlockStart and not flagReadStart:
+            baseIndex = boudaryIndex
+    fp.close()
+
+def runNormal(args):
     fileNumCounter = 0
     ifReadStart = False
     ifEnd = True
@@ -44,7 +140,7 @@ def main(args):
 
     resultList = []
     for line in fin:
-        readStart = regReportRStart.match(line)
+        readStart = regReadStart.match(line)
         callStackLine = regCallStackLine.match(line)
         lineBreak = regLineBreak.match(line)
         racingVar = regRacingVar.match(line)
@@ -75,8 +171,25 @@ def main(args):
                     del resultList[:]
     fin.close()
 
+def main(args):
+    if args.mode == "overnight":
+        runOverNight(args)
+    elif args.mode == "normal":
+        runNormal(args)
+    else:
+        sys.stderr.write('Error: Unrecognizable mode\n')
+        exit(1)
+
 if __name__=='__main__':
+    ''' There are two modes for this script. One is overnight mode and the other
+        one is normal mode. Overnight mode will check the race report generated
+        by the race detector every 10s and parse the output and feed them into
+        out backend. Normal mode will only parse the output once.
+    '''
     parser = argparse.ArgumentParser(description='Valgrind output parser')
+    parser.add_argument('--mode', type=str, dest="mode",
+            action="store", default="normal", required=True,
+            help="Running mode [ overnight | normal ]")
     parser.add_argument('--input', type=str, dest="raceReportIn",
             action="store", default="none", required=True,
             help="Valgrind raw race report")
@@ -84,4 +197,12 @@ if __name__=='__main__':
             action="store", default="none", required=True,
             help="Parsed race report")
     args = parser.parse_args()
+    # Set up the signal handler
+    signal.signal(signal.SIGINT, signal_handler)
+    # Set up the logging system
+    logging.basicConfig(level=logging.DEBUG,
+            format='%(asctime)s %(levelname)s %(message)s',
+            filename='parser.log',
+            filemode='w')
+    logging.debug("Script starts")
     main(args)
