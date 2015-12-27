@@ -59,7 +59,7 @@ then
     # Start valgrind here!
 	valgrind --tool=helgrind --trace-children=yes --read-var-info=yes $CONANAL_ROOT/concurrency-exploits/apache-21287/apache-install/bin/apachectl -k start >| valgrind_latest.output 2>&1 &
     # Bug triggering input here!
-    httperf --server=127.0.1.1 --port=7000 --uri=/pippo.php?variable=1111 --num-conns=10 --num-calls=10
+    httperf --server=127.0.0.1 --port=7000 --uri=/index.html.en --num-conns=100 --num-calls=100
 fi
 
 if [ "$1" != "no_static_analysis" ]
