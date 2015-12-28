@@ -16,7 +16,7 @@ fi
 
 if [ "$1" != "no_race_detector" ]
 then
-	# Step 1: You *must* build our project using CMake before running this script.
+    # Step 1: You *must* build our project using CMake before running this script.
     # Create a folder named build in the top level source code folder.
     if [ -d "$BUILD_DIRECTORY" ]
     then
@@ -33,7 +33,7 @@ then
         exit 1
     fi
 
-    cd $CONANAL_ROOT/concurrency-exploits/apache-21287
+    cd $CONANAL_ROOT/concurrency-exploits/apache-24988
     if [ $? -ne 0 ]
     then
         echo "Error: Couldn't enter submodule concurrency-exploits."
@@ -41,11 +41,11 @@ then
         exit 1
     fi
 
-    if [ -f "apache-install/bin/apachectl" ] 
+    if [ -f "mysql-install/libexec/mysqld" ]
     then
-        echo "Seems you've built apache already, very good!"
+        echo "Seems you've built mysql already, very good!"
     else
-        echo "Error: You need to build apache before running this script."
+        echo "Error: You need to build mysql before running this script."
         echo "You can use mk.sh to automatically build it."
     fi
 
@@ -55,11 +55,22 @@ then
         echo "Error: Please install valgrind before running this script."
         echo "We strongly recommend using valgrind 3.11."
     fi
-	cd $CONANAL_ROOT/TESTS/apache-21287
+    cd $CONANAL_ROOT/TESTS/mysql-24988
+    # Set up databases
+    mysql-install/bin/mysql_install_db --user=root
+    mysql-install/libexec/mysqld --user=root &
+    sleep 5
+    mysql-install/bin/mysql -u root < grant.sql
+    pkill -9 mysql
+
     # Start valgrind here!
-	valgrind --tool=helgrind --trace-children=yes --read-var-info=yes $CONANAL_ROOT/concurrency-exploits/apache-21287/apache-install/bin/apachectl -k start >| valgrind_latest.output 2>&1 &
+    valgrind --tool=helgrind --trace-children=yes --read-var-info=yes $CONANAL_ROOT/concurrency-exploits/mysql-24988/mysql-install/libexec/mysqld --user=root >| valgrind_latest.output 2>&1 &
+    sleep 15
+
     # Bug triggering input here!
-    httperf --server=127.0.1.1 --port=7000 --uri=/pippo.php?variable=1111 --num-conns=10 --num-calls=10
+    ./client1.sh &
+    sleep 5
+    ./client2.sh
 fi
 
 if [ "$1" != "no_static_analysis" ]
@@ -70,9 +81,9 @@ then
 		while read file; do
 			echo "The race report is newly added '$file'. Start static analysis"
 			# do something with the file
-			cp $file $CONANAL_ROOT/build/TESTS/apache-21287/
-    		cd $CONANAL_ROOT/build/TESTS/apache-21287/
-			./autotest.sh apache-21287 $file
+			cp $file $CONANAL_ROOT/build/TESTS/mysql-24988/
+    		cd $CONANAL_ROOT/build/TESTS/mysql-24988/
+			./autotest.sh mysql-24988 $file
 		done &
 
 	# Monitor Valgrind's output file to add new race reports
