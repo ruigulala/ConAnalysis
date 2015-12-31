@@ -33,7 +33,7 @@ then
         exit 1
     fi
 
-    cd $CONANAL_ROOT/concurrency-exploits/apache-21287
+    cd $CONANAL_ROOT/concurrency-exploits/apache-25520
     if [ $? -ne 0 ]
     then
         echo "Error: Couldn't enter submodule concurrency-exploits."
@@ -55,7 +55,7 @@ then
         echo "Error: Please install valgrind before running this script."
         echo "We strongly recommend using valgrind 3.11."
     fi
-	cd $CONANAL_ROOT/TESTS/apache-21287
+	cd $CONANAL_ROOT/TESTS/apache-25520
     # Start valgrind here!
 	valgrind --tool=helgrind --trace-children=yes --read-var-info=yes $CONANAL_ROOT/concurrency-exploits/apache-21287/apache-install/bin/apachectl -k start >| valgrind_latest.output 2>&1 &
     # Bug triggering input here!
@@ -70,9 +70,9 @@ then
 		while read file; do
 			echo "The race report is newly added '$file'. Start static analysis"
 			# do something with the file
-			cp $file $CONANAL_ROOT/build/TESTS/apache-21287/
-    		cd $CONANAL_ROOT/build/TESTS/apache-21287/
-			./autotest.sh libsafe-cve-1125 $file
+			cp $file $CONANAL_ROOT/build/TESTS/apache-25520/
+    		cd $CONANAL_ROOT/build/TESTS/apache-25520/
+			./autotest.sh apache-25520 $file
 		done &
 
 	# Monitor Valgrind's output file to add new race reports

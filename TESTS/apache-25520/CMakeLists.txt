@@ -1,6 +1,8 @@
 configure_file(autotest.sh autotest.sh COPYONLY)
 configure_file(race_report.txt race_report.txt COPYONLY)
 configure_file(danMemFuncLists.txt danMemFuncLists.txt COPYONLY)
+configure_file(danPrivilegedFuncLists.txt danPrivilegedFuncLists.txt COPYONLY)
+configure_file(apache-25520.bc apache-25520.bc COPYONLY)
 
 set(SOURCE_NAME apache-25520)
 set(src_bc_compiler clang)

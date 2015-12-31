@@ -30,7 +30,7 @@ macro (do_test arg result)
 endmacro (do_test)
 
 # test libsafe-cve-1125
-add_test(libsafe-cve-1125.test "${PROJECT_BINARY_DIR}/TESTS/libsafe-cve-1125/autotest.sh" "libsafe-cve-1125")
+add_test(libsafe-cve-1125.test "${PROJECT_BINARY_DIR}/TESTS/libsafe-cve-1125/autotest.sh" "libsafe-cve-1125" "${PROJECT_BINARY_DIR}/TESTS/libsafe-cve-1125/race_report.txt")
 set_tests_properties (libsafe-cve-1125.test
   #PROPERTIES PASS_REGULAR_EXPRESSION "\\[ 5 628 629 631 632 636 638 639 643 \\]"
   PROPERTIES PASS_REGULAR_EXPRESSION ""
@@ -49,7 +49,7 @@ set_tests_properties (libvirt-cve-1447.test
   )
 
 # test apache-25520 
-add_test(apache-25520.test "${PROJECT_BINARY_DIR}/TESTS/apache-25520/autotest.sh" "apache-25520")
+add_test(apache-25520.test "${PROJECT_BINARY_DIR}/TESTS/apache-25520/autotest.sh" "apache-25520" "${PROJECT_BINARY_DIR}/TESTS/apache-25520/race_report.txt")
 set_tests_properties (apache-25520.test
   PROPERTIES PASS_REGULAR_EXPRESSION "\\[ 15319 15320 15321 15322 15323 14698 14699 14700 14701 14710 14711 14712 14713 15324 15366 15367 15369 15372 15388 15394 15395 15396 15397 15308 \\]"
   )
