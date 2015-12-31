@@ -2,7 +2,7 @@
 set -x
 
 if [ ! $# -eq 2 ]; then
-  echo "Usage: $0 libsafe-cve-1125 race_report.txt"
+  echo "Usage: $0 apache-25520 race_report.txt"
   exit 1
 fi
 
@@ -10,10 +10,12 @@ fi
 TEST_DIR='TESTS/apache-25520'
 CONANAL_DIR='lib/ConAnal'
 DOL_DIR='lib/DOL'
-BITCODE_DIR=TESTS/${1}
+BITCODE_DIR="TESTS/${1}"
 
-opt -mem2reg ${1}.bc -o ${1}.mem2reg && mv ${1}.mem2reg ${1}.bc
+cd $BITCODE_DIR && opt -mem2reg ${1}.bc -o ${1}.mem2reg && mv ${1}.mem2reg ${1}.bc
 # Only the standard output info will be printed
 opt -load ../../$DOL_DIR/libDOL.so --danFuncFile danMemFuncLists.txt -load ../../$CONANAL_DIR/libConAnalysis.so -ConAnalysis ../../../TESTS/${1}/${1}.bc --ptrderef --danfunc --raceReport ${2} > /dev/null
 # ConAnalysis Debug info will be enabled
 #opt -debug-only=con-analysis -load ../../$DOL_DIR/libDOL.so --danFuncFile danPrivilegedFuncLists.txt -load ../../$CONANAL_DIR/libConAnalysis.so -ConAnalysis ../../../TESTS/${1}/${1}.bc --ptrderef --danfunc > /dev/null
+
+echo "ConAnalysis Done!"
