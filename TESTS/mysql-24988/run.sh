@@ -33,7 +33,7 @@ then
         exit 1
     fi
 
-    cd $CONANAL_ROOT/concurrency-exploits/apache-24988
+    cd $CONANAL_ROOT/concurrency-exploits/mysql-24988
     if [ $? -ne 0 ]
     then
         echo "Error: Couldn't enter submodule concurrency-exploits."
@@ -55,7 +55,6 @@ then
         echo "Error: Please install valgrind before running this script."
         echo "We strongly recommend using valgrind 3.11."
     fi
-    cd $CONANAL_ROOT/TESTS/mysql-24988
     # Set up databases
     mysql-install/bin/mysql_install_db --user=root
     mysql-install/libexec/mysqld --user=root &
@@ -63,6 +62,7 @@ then
     mysql-install/bin/mysql -u root < grant.sql
     pkill -9 mysql
 
+    cd $CONANAL_ROOT/TESTS/mysql-24988
     # Start valgrind here!
     valgrind --tool=helgrind --trace-children=yes --read-var-info=yes $CONANAL_ROOT/concurrency-exploits/mysql-24988/mysql-install/libexec/mysqld --user=root >| valgrind_latest.output 2>&1 &
     sleep 15

@@ -83,7 +83,7 @@ def runOverNight(args):
             readEnd = regReadEnd.match(line)
             callStackLine = regCallStackLine.match(line)
             lineBreak = regLineBreak.match(line)
-            racingVar = regRacingVar.match(line)
+            #racingVar = regRacingVar.match(line)
             if blockStart:
                 logging.debug('Line ' + str(i) + ": Block Start")
                 flagBlockStart = True
@@ -101,15 +101,25 @@ def runOverNight(args):
                                 + callStackLine.group(4) + "\n")
                     else:
                         flagReadStart = False
-            elif racingVar:
-                logging.debug('Line ' + str(i) + ": Racing Variable")
+            # We don't handle racing variable for now.
+            #elif racingVar:
+                #logging.debug('Line ' + str(i) + ": Racing Variable")
+                #if len(resultList) > 0:
+                    #fout = open(args.raceReportOut + str(outFileNo), "w")
+                    #flagReadStart = False
+                    #writeResult2File(fout, resultList)
+                    #fout.close()
+                    #del resultList[:]
+                #flagBlockStart = False
+                #flagReadStart = False
+            elif lineBreak:
+                logging.debug('Line ' + str(i) + ": Line Break")
                 if len(resultList) > 0:
                     fout = open(args.raceReportOut + str(outFileNo), "w")
-                    flagReadStart = False
+                    outFileNo += 1
                     writeResult2File(fout, resultList)
                     fout.close()
                     del resultList[:]
-                flagBlockStart = False
                 flagReadStart = False
             elif blockEnd:
                 logging.debug('Line ' + str(i) + ": Line Break Block Ends")
@@ -117,7 +127,6 @@ def runOverNight(args):
                 flagReadStart = False
                 if len(resultList) > 0:
                     fout = open(args.raceReportOut + str(outFileNo), "w")
-                    flagReadStart = False
                     outFileNo += 1
                     writeResult2File(fout, resultList)
                     fout.close()
@@ -127,49 +136,85 @@ def runOverNight(args):
     fp.close()
 
 def runNormal(args):
-    fileNumCounter = 0
-    ifReadStart = False
-    ifEnd = True
-    lineBreakCounter = 0
+    baseIndex = 0
+    curIndex = 0
+    outFileNo = 0
+    flagBlockStart = False
+    flagReadStart = False
 
     try:
-        fin = open(args.raceReportIn, "r")
+        fp = open(args.raceReportIn, "r")
     except IOError:
         sys.stderr.write('Error: Input file does not exist!\n')
         exit(1)
 
     resultList = []
-    for line in fin:
+
+    boudaryIndex = checkBlockIntegrity(baseIndex, fp)
+    logging.debug("End boudary is " + str(boudaryIndex))
+    fp.seek(0)
+    for i, line in enumerate(fp, 1):
+        if i < baseIndex:
+            continue
+        elif i >= boudaryIndex:
+            break
+        blockStart = regBlockStart.match(line)
+        blockEnd = regBlockEnd.match(line)
         readStart = regReadStart.match(line)
+        readEnd = regReadEnd.match(line)
         callStackLine = regCallStackLine.match(line)
         lineBreak = regLineBreak.match(line)
-        racingVar = regRacingVar.match(line)
-        if readStart:
-            lineBreakCounter = 0
-            ifReadStart = True
-            ifEnd = False
+        #racingVar = regRacingVar.match(line)
+        if blockStart:
+            logging.debug('Line ' + str(i) + ": Block Start")
+            flagBlockStart = True
+        elif readStart:
+            logging.debug('Line ' + str(i) + ": Read Start")
+            flagReadStart = True
+        elif readEnd:
+            logging.debug('Line ' + str(i) + ": Read End")
+            flagReadStart = False
         elif callStackLine:
-            if ifReadStart and not ifEnd:
+            if flagReadStart and flagBlockStart:
                 if callStackLine.group(2) != "mythread_wrapper":
-                    resultList.append(callStackLine.group(2) + " " 
-                        + callStackLine.group(4) + "\n")
+                    logging.debug('Line ' + str(i) + ": Writing Content")
+                    resultList.append(callStackLine.group(2) + " "
+                            + callStackLine.group(4) + "\n")
                 else:
-                    ifEnd = True
+                    flagReadStart = False
+        # We don't handle racing variable for now.
+        #elif racingVar:
+            #logging.debug('Line ' + str(i) + ": Racing Variable")
+            #if len(resultList) > 0:
+                #fout = open(args.raceReportOut + str(outFileNo), "w")
+                #flagReadStart = False
+                #writeResult2File(fout, resultList)
+                #fout.close()
+                #del resultList[:]
+            #flagBlockStart = False
+            #flagReadStart = False
         elif lineBreak:
-            lineBreakCounter += 1
-        elif racingVar:
-            if lineBreakCounter <= 1:
-                if len(resultList) > 0:
-                    resultList.insert(0, racingVar.group(2) + "\n") 
-                    fout = open(args.raceReportOut + str(fileNumCounter), "w")
-                    for item in resultList:
-                        fout.write("%s" % item)
-                    ifReadStart = False
-                    ifEnd = True
-                    fileNumCounter += 1
-                    fout.close()
-                    del resultList[:]
-    fin.close()
+            logging.debug('Line ' + str(i) + ": Line Break")
+            if len(resultList) > 0:
+                fout = open(args.raceReportOut + str(outFileNo), "w")
+                outFileNo += 1
+                writeResult2File(fout, resultList)
+                fout.close()
+                del resultList[:]
+            flagReadStart = False
+        elif blockEnd:
+            logging.debug('Line ' + str(i) + ": Line Break Block Ends")
+            flagBlockStart = False
+            flagReadStart = False
+            if len(resultList) > 0:
+                fout = open(args.raceReportOut + str(outFileNo), "w")
+                outFileNo += 1
+                writeResult2File(fout, resultList)
+                fout.close()
+                del resultList[:]
+    if not flagBlockStart and not flagReadStart:
+            baseIndex = boudaryIndex
+    fp.close()
 
 def main(args):
     if args.mode == "overnight":

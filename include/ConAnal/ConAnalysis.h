@@ -88,10 +88,10 @@ class ConAnalysis : public ModulePass {
     ///
     virtual bool printMap(Module &M);
     ///
-    virtual bool getCorruptedIRs(Module &M);
+    virtual bool getCorruptedIRs(Module &M, DOL &labels);
     ///
     virtual bool intraDataflowAnalysis(Function *, Instruction *,
-                                         CorruptedArgs & corruptedparams);
+                                       CorruptedArgs & corruptedparams);
     ///
     virtual uint32_t getDominators(Module &M, FuncFileLineList &csinput);
     /// Returns the intersection between two lists
@@ -124,15 +124,17 @@ class ConAnalysis : public ModulePass {
     }
 
  private:
-    std::string corruptedVar_;
     std::map<Instruction *, int> ins2int_;
     uint64_t ins_count_ = 1;
     /// <fileName, lineNum> -> list<Instruction *>
     std::map<std::pair<std::string, uint32_t>, InstructionList> sourcetoIRmap_;
     std::set<Value *> corruptedIR_;
+    std::set<Value *> finishedVars_;
     std::map<Value *, std::list<GepIdxStruct *>> corruptedPtr_;
     std::list<Value *> orderedcorruptedIR_;
-    std::list<std::pair<Function *, Instruction *>> callstack_;
+    std::list<std::pair<Function *, Instruction *>> callStack_;
+    std::list<std::pair<Function *, Instruction *>> callStackHead_;
+    std::list<std::pair<Function *, Instruction *>> callStackBody_;
     std::map<Value *, std::list<Value *>> corruptedMap_;
 };
 }// namespace ConAnal

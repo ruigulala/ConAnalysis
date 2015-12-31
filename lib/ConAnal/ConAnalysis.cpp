@@ -41,13 +41,16 @@ static cl::opt<std::string> RaceReportInput("raceReport",
     cl::desc("race report input file"), cl::Required);
 
 void ConAnalysis::clearClassDataMember() {
-  corruptedVar_.clear();
+  // Rummor says there will be funky problems if we don't clear these contains.
   ins2int_.clear();
   sourcetoIRmap_.clear();
   corruptedIR_.clear();
+  finishedVars_.clear();
   corruptedPtr_.clear();
   orderedcorruptedIR_.clear();
-  callstack_.clear();
+  callStack_.clear();
+  callStackHead_.clear();
+  callStackBody_.clear();
   corruptedMap_.clear();
 }
 
@@ -122,31 +125,23 @@ bool ConAnalysis::add2CrptList(Value * crptVal) {
 }
 
 void ConAnalysis::parseInput(std::string inputfile, FuncFileLineList &csinput) {
-  char varName[300];
   std::ifstream ifs(inputfile);
   if (!ifs.is_open()) {
-    errs() << "Runtime Error: Couldn't find race_report.txt\n";
+    errs() << "Runtime Error: Couldn't find " << inputfile << "\n";
     errs() << "Please check the file path\n";
     abort();
   }
   std::string line;
-  //errs() << "Replaying input:\n";
-  //errs() << "Read from file " << inputfile << "\n";
-  std::getline(ifs, line);
-  sscanf(line.c_str(), "%s\n", varName);
-  corruptedVar_ = std::string(varName);
-  errs() << "Corrupted Variable : " << corruptedVar_ << "\n";
   while (std::getline(ifs, line)) {
     char fileName[300];
     char funcName[300];
     uint32_t lineNum;
+    int rv = 0;
     // Input format: funcName (fileName:lineNum)
-    sscanf(line.c_str(), "%s (%[^ :]:%u)\n", funcName, fileName, &lineNum);
+    rv = sscanf(line.c_str(), "%s (%[^ :]:%u)\n", funcName, fileName, &lineNum);
+    assert(rv > 0 && "Invalid input line!\n");
     std::string s1(funcName), s2(fileName);
-    csinput.push_front(std::make_tuple(s1, s2, lineNum));
-    //errs() << "Funcname:" << s2 << "\n";
-    //errs() << "FileName:" << s1 << "\n";
-    //errs() << "LineNum:" << lineNum << "\n\n";
+    csinput.push_back(std::make_tuple(s1, s2, lineNum));
     line.clear();
   }
 }
@@ -162,8 +157,7 @@ void ConAnalysis::initializeCallStack(FuncFileLineList &csinput) {
       errs() << "ERROR: <" << std::get<1>(*cs_it) << " "
              << std::get<2>(*cs_it) << ">"
              << " sourcetoIRmap_ look up failed.\n";
-      continue; 
-      // abort();
+      continue;
     }
     std::list<Instruction *>& insList = mapitr->second;
     if (insList.begin() == insList.end()) {
@@ -174,43 +168,48 @@ void ConAnalysis::initializeCallStack(FuncFileLineList &csinput) {
     }
     for (auto listit = insList.begin(); listit != insList.end(); ++listit) {
       if (isa<GetElementPtrInst>(*listit)) {
-        StringRef cvar = getOriginalName((*listit)->getOperand(0));
-        StringRef cvar_compare = StringRef(corruptedVar_);
-        DEBUG(errs() << "geteleptr var: " << cvar << "\n");
-        errs() << "corruptedVar_: " << corruptedVar_ << "\n";
-        if (!cvar_compare.count(cvar))
+        if (cs_it != csinput.begin())
           continue;
-        DEBUG((*listit)->print(errs()); errs() << "\n";);
-        Function * func = &*(((*listit)->getParent())->getParent());
-        DEBUG(errs() << func->getName() << " contains the above ins\n");
-        callstack_.push_front(std::make_pair(&*func, *listit));
-        break;
-      } else if (isa<CallInst>(*listit) || isa<InvokeInst>(*listit)) {
-        Function * func = &*(((*listit)->getParent())->getParent());
-        DEBUG((*listit)->print(errs()); errs() << "\n";);
-        DEBUG(errs() << func->getName() << " contains the above ins\n");
-        callstack_.push_front(std::make_pair(&*func, *listit));
-        break;
-      } else {
-        Function * func = &*(((*listit)->getParent())->getParent());
-        if (std::next(cs_it, 1) == csinput.end()) {
-          DEBUG((*listit)->print(errs()); errs() << "\n";);
-          DEBUG(errs() << func->getName() << " contains the above ins\n");
-          callstack_.push_front(std::make_pair(&*func, *listit));
-          break;
-        }
-        else {
-          for (uint32_t op_i = 0; op_i < (*listit)->getNumOperands(); op_i++) {
-            StringRef cvar = getOriginalName((*listit)->getOperand(op_i));
-            StringRef cvar_compare = StringRef(corruptedVar_);
-            if (!cvar_compare.count(cvar))
-              continue;
-            DEBUG((*listit)->print(errs()); errs() << "\n";);
-            DEBUG(errs() << func->getName() << " contains the above ins\n");
-            callstack_.push_front(std::make_pair(&*func, *listit));
+        // This flag checks if the corrupted variable is already added
+        // to the head.
+        bool flagAlreadyAddedVar = false;
+        for (uint32_t op_i = 0; op_i < (*listit)->getNumOperands(); op_i++) {
+          if (finishedVars_.count((*listit)->getOperand(op_i))) {
+            flagAlreadyAddedVar = true;
             break;
           }
         }
+        if (flagAlreadyAddedVar)
+          break;
+        Function * func = &*(((*listit)->getParent())->getParent());
+        DEBUG(errs() << func->getName() << " contains the above ins\n");
+        //callStack_.push_back(std::make_pair(&*func, *listit));
+        callStackHead_.push_back(std::make_pair(&*func, *listit));
+        finishedVars_.insert(*listit);
+      } else if (isa<CallInst>(*listit) || isa<InvokeInst>(*listit)) {
+        assert(cs_it != csinput.begin() &&
+            "Call Inst is the first one in the call stack!");
+        Function * func = &*(((*listit)->getParent())->getParent());
+        DEBUG((*listit)->print(errs()); errs() << "\n";);
+        DEBUG(errs() << func->getName() << " contains the above ins\n");
+        //callStack_.push_back(std::make_pair(&*func, *listit));
+        callStackBody_.push_back(std::make_pair(&*func, *listit));
+        break;
+      } else {
+        if (cs_it != csinput.begin())
+          continue;
+        Function * func = &*(((*listit)->getParent())->getParent());
+        bool flagAlreadyAddedVar = false;
+        for (uint32_t op_i = 0; op_i < (*listit)->getNumOperands(); op_i++) {
+          if (finishedVars_.count((*listit)->getOperand(op_i))) {
+            flagAlreadyAddedVar = true;
+            break;
+          }
+        }
+        if (flagAlreadyAddedVar)
+          break;
+        callStackHead_.push_back(std::make_pair(&*func, *listit));
+        finishedVars_.insert(*listit);
       }
     }
     DEBUG(errs() << "\n");
@@ -230,29 +229,8 @@ bool ConAnalysis::runOnModule(Module &M) {
   printMap(M);
   parseInput(RaceReportInput, raceReport);
   initializeCallStack(raceReport);
-  getCorruptedIRs(M);
-  if (PtrDerefCheck) {
-    errs() << "*********************************************************\n";
-    errs() << "   Pointer Dereference Analysis Result \n";
-    errs() << "   # of static pointer deference statements: "
-      << labels.danPtrOps_.size() << "\n";
-    uint32_t vulNum = getDominators(M, labels.danPtrOps_);
-    errs() << "\n   # of detected potential vulnerabilities: "
-      << vulNum << "\n";
-    errs() << "*********************************************************\n";
-    errs() << "\n";
-  }
-  if (DanFuncCheck) {
-    errs() << "*********************************************************\n";
-    errs() << "   Dangerous Function Analysis Result  \n"; 
-    errs() << "   # of static dangerous function statements: "
-      << labels.danFuncs_.size() << "\n";
-    uint32_t vulNum = getDominators(M, labels.danFuncOps_);
-    errs() << "\n   # of detected potential vulnerabilities: "
-      << vulNum << "\n";
-    errs() << "*********************************************************\n";
-    errs() << "\n";
-  }
+  getCorruptedIRs(M, labels);
+  
   return false;
 }
 
@@ -330,26 +308,57 @@ bool ConAnalysis::printMap(Module &M) {
   return false;
 }
 
-bool ConAnalysis::getCorruptedIRs(Module &M) {
+bool ConAnalysis::getCorruptedIRs(Module &M, DOL &labels) {
   DEBUG(errs() << "---- Getting Corrupted LLVM IRs ----\n");
-  while (!callstack_.empty()) {
-    auto& loc = callstack_.front();
-    CorruptedArgs coparams;
-    DEBUG(errs() << "Original Callstack: Go into \"" << loc.first->getName()
-           << "\"\n");
-    bool addFuncRet = false;
-    addFuncRet = intraDataflowAnalysis(loc.first, loc.second, coparams);
-    DEBUG(errs() << "Callstack POP " << loc.first->getName() << "\n");
-    callstack_.pop_front();
-    if (addFuncRet && !callstack_.empty()) {
-      auto& loc = callstack_.front();
-      add2CrptList(&*loc.second);
+  for (auto cs_itr : callStackHead_) {
+    // Each time, we create a call stack using one element from callStackHead
+    // and the whole callStackBody
+    callStack_.clear();
+    callStack_ = callStackBody_;
+    callStack_.push_front(cs_itr);
+
+    while (!callStack_.empty()) {
+      auto& loc = callStack_.front();
+      CorruptedArgs coparams;
+      DEBUG(errs() << "Original Callstack: Go into \"" << loc.first->getName()
+             << "\"\n");
+      bool addFuncRet = false;
+      addFuncRet = intraDataflowAnalysis(loc.first, loc.second, coparams);
+      DEBUG(errs() << "Callstack POP " << loc.first->getName() << "\n");
+      callStack_.pop_front();
+      if (addFuncRet && !callStack_.empty()) {
+        auto& loc = callStack_.front();
+        add2CrptList(&*loc.second);
+      }
+    }
+    DEBUG(errs() << "\n");
+    errs() << "---- Part 1: Dataflow Result ---- \n";
+    printList(orderedcorruptedIR_);
+    errs() << "\n";
+
+    if (PtrDerefCheck) {
+      errs() << "*********************************************************\n";
+      errs() << "     Pointer Dereference Analysis Result                 \n";
+      errs() << "   # of static pointer deference statements: "
+        << labels.danPtrOps_.size() << "\n";
+      uint32_t vulNum = getDominators(M, labels.danPtrOps_);
+      errs() << "\n   # of detected potential vulnerabilities: "
+        << vulNum << "\n";
+      errs() << "*********************************************************\n";
+      errs() << "\n";
+    }
+    if (DanFuncCheck) {
+      errs() << "*********************************************************\n";
+      errs() << "     Dangerous Function Analysis Result                  \n";
+      errs() << "   # of static dangerous function statements: "
+        << labels.danFuncs_.size() << "\n";
+      uint32_t vulNum = getDominators(M, labels.danFuncOps_);
+      errs() << "\n   # of detected potential vulnerabilities: "
+        << vulNum << "\n";
+      errs() << "*********************************************************\n";
+      errs() << "\n";
     }
   }
-  DEBUG(errs() << "\n");
-  errs() << "---- Part 1: Dataflow Result ---- \n";
-  printList(orderedcorruptedIR_);
-  errs() << "\n";
   return false;
 }
 
@@ -441,7 +450,7 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
         continue;
       // Check for cycles
       bool cycle_flag = false;
-      for (auto& csit : callstack_) {
+      for (auto& csit : callStack_) {
         if ((std::get<0>(csit))->getName().str().compare(
                 (callee->getName()).str()) == 0) {
           cycle_flag = true;
@@ -465,15 +474,15 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
       DEBUG(errs() << "\"" << F->getName() << "\"" << " calls "
              << "\"" << callee->getName() << "\"\n");
       DEBUG(errs() << "Callstack PUSH " << callee->getName() << "\n");
-      callstack_.push_front(std::make_pair(callee, nullptr));
+      callStack_.push_front(std::make_pair(callee, nullptr));
       bool addFuncRet = false;
       addFuncRet = intraDataflowAnalysis(callee, nullptr, coparams);
       if (addFuncRet) {
         add2CrptList(&*I);
       }
-      DEBUG(errs() << "Callstack POP " << callstack_.front().first->getName() 
+      DEBUG(errs() << "Callstack POP " << callStack_.front().first->getName() 
           << "\n");
-      callstack_.pop_front();
+      callStack_.pop_front();
     } else if (isa<GetElementPtrInst>(&*I)) {
       int op_ii = I->getNumOperands();
       if (corruptedPtr_.count(I->getOperand(0))) {

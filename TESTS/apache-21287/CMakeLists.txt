@@ -1,6 +1,7 @@
 configure_file(autotest.sh autotest.sh COPYONLY)
-configure_file(part1_loc.txt part1_loc.txt COPYONLY)
-configure_file(part2_loc.txt part2_loc.txt COPYONLY)
+configure_file(danMemFuncLists.txt danMemFuncLists.txt COPYONLY)
+configure_file(danPrivilegedFuncLists.txt danPrivilegedFuncLists.txt COPYONLY)
+configure_file(apache-21287.bc apache-21287.bc COPYONLY)
 
 set(SOURCE_NAME apache-21287)
 set(src_bc_compiler clang)
