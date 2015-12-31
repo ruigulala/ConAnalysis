@@ -100,7 +100,7 @@ make
 ```
 * Run our LLVM analysis pass on libsafe.
 ```
-make test
+ctest -R libsafe
 ```
 Then go to the folder contains the actual test output. 
 ```
@@ -108,6 +108,15 @@ cd $CONANAL_ROOT/build/Testing/Temporary
 vim LastTest.log
 ```
 For each test case, there is a folder under TESTS named standard-output contains all the verified standarded output.
+
+Or you can go to $CONANAL_ROOT/TESTS/libsafe-cve-1125 and 
+```
+./run.sh 
+```
+for an automatic run which contains the race detection and static analysis. The output will be in
+```
+$CONANAL_ROOT/build/TESTS/libsafe-cve-1125/final*
+```
 
 ## Future work
 Now you have finished all the required steps. You can enjoy the following hacking work on our project.
