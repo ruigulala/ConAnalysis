@@ -89,7 +89,7 @@ Now, since you've installed all the dependencies of ConAnalysis project, you can
 
 * Goto ConAnalysis source code folder
 ```
-cd path-to-ConAnalysis-source
+cd $CONANAL_ROOT
 ```
 * Build ConAnalysis using CMake
 ```
