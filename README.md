@@ -111,7 +111,7 @@ For each test case, there is a folder under TESTS named standard-output contains
 
 Or you can go to $CONANAL_ROOT/TESTS/libsafe-cve-1125 and 
 ```
-./run.sh 
+./run.sh no_race_detector
 ```
 for an automatic run which contains the race detection and static analysis. The output will be in
 ```
