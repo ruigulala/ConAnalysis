@@ -93,7 +93,8 @@ class ConAnalysis : public ModulePass {
     virtual bool intraDataflowAnalysis(Function *, Instruction *,
                                        CorruptedArgs & corruptedparams);
     ///
-    virtual uint32_t getDominators(Module &M, FuncFileLineList &csinput);
+    virtual uint32_t getDominators(Module &M, FuncFileLineList &csinput,
+        std::set<Function *> &corruptedIRFuncSet);
     /// Returns the intersection between two lists
     virtual bool getFeasiblePath(Module &M,
                                  std::list<Value *> &dominantfrontiers);

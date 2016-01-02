@@ -226,7 +226,7 @@ bool ConAnalysis::runOnModule(Module &M) {
   errs() << "       Start ConAnalysis Pass          \n";
   errs() << "---------------------------------------\n";
   createMaps(M);
-  printMap(M);
+  //printMap(M);
   parseInput(RaceReportInput, raceReport);
   initializeCallStack(raceReport);
   getCorruptedIRs(M, labels);
@@ -336,12 +336,20 @@ bool ConAnalysis::getCorruptedIRs(Module &M, DOL &labels) {
     printList(orderedcorruptedIR_);
     errs() << "\n";
 
+    std::set<Function *> corruptedIRFuncSet;
+    for (auto IR = corruptedIR_.begin(); IR != corruptedIR_.end(); IR++) {
+      if (!isa<Instruction> (*IR))
+        continue;
+      Function * func = dyn_cast<Instruction>(*IR)->getParent()->getParent();
+      corruptedIRFuncSet.insert(func);
+    }
+
     if (PtrDerefCheck) {
       errs() << "*********************************************************\n";
       errs() << "     Pointer Dereference Analysis Result                 \n";
       errs() << "   # of static pointer deference statements: "
         << labels.danPtrOps_.size() << "\n";
-      uint32_t vulNum = getDominators(M, labels.danPtrOps_);
+      uint32_t vulNum = getDominators(M, labels.danPtrOps_, corruptedIRFuncSet);
       errs() << "\n   # of detected potential vulnerabilities: "
         << vulNum << "\n";
       errs() << "*********************************************************\n";
@@ -352,7 +360,8 @@ bool ConAnalysis::getCorruptedIRs(Module &M, DOL &labels) {
       errs() << "     Dangerous Function Analysis Result                  \n";
       errs() << "   # of static dangerous function statements: "
         << labels.danFuncs_.size() << "\n";
-      uint32_t vulNum = getDominators(M, labels.danFuncOps_);
+      uint32_t vulNum = getDominators(M, labels.danFuncOps_,
+          corruptedIRFuncSet);
       errs() << "\n   # of detected potential vulnerabilities: "
         << vulNum << "\n";
       errs() << "*********************************************************\n";
@@ -557,7 +566,8 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
   return rv;
 }
 
-uint32_t ConAnalysis::getDominators(Module &M, FuncFileLineList &danOps) {
+uint32_t ConAnalysis::getDominators(Module &M, FuncFileLineList &danOps,
+    std::set<Function *> &corruptedIRFuncSet) {
   uint32_t rv = 0;
   // ffl means FuncFileLine
   for (auto fflTuple = danOps.begin(); fflTuple != danOps.end(); fflTuple++) {
@@ -568,6 +578,9 @@ uint32_t ConAnalysis::getDominators(Module &M, FuncFileLineList &danOps) {
     uint32_t line = std::get<2>(*fflTuple);
     InstructionList iList = sourcetoIRmap_[std::make_pair(fileName, line)];
     Function *F = iList.front()->getParent()->getParent();
+    if (!corruptedIRFuncSet.count(F)) {
+      continue;
+    }
     assert(F != NULL && "Couldn't obtain Function * for dangerous op");
     if (F->getName().str().compare(std::get<0>(*fflTuple)) == 0) {
       computeDominators(*F, dominators);

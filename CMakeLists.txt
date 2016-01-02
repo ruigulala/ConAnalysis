@@ -15,6 +15,7 @@ add_subdirectory(TESTS/kernel-cve-2004-1235) # real exploit exists
 add_subdirectory(TESTS/libvirt-cve-1447) # real exploit exists
 add_subdirectory(TESTS/apache-25520) # real exploit exists
 add_subdirectory(TESTS/apache-21287) # concurrency bug
+add_subdirectory(TESTS/mysql-24988) # concurrency bug
 #add_subdirectory(TESTS/freebsd-cve-3527a)
 #add_subdirectory(TESTS/freebsd-osvdb-58543)
 
@@ -54,9 +55,15 @@ set_tests_properties (apache-25520.test
   PROPERTIES PASS_REGULAR_EXPRESSION "\\[ 15319 15320 15321 15322 15323 14698 14699 14700 14701 14710 14711 14712 14713 15324 15366 15367 15369 15372 15388 15394 15395 15396 15397 15308 \\]"
   )
 
-# test apache-25520 
+# test apache-21287
 add_test(apache-21287.test "${PROJECT_BINARY_DIR}/TESTS/apache-21287/autotest.sh" "apache-21287")
 set_tests_properties (apache-21287.test
+  PROPERTIES PASS_REGULAR_EXPRESSION ""
+  )
+
+# test mysql-24988
+add_test(mysql-24988.test "${PROJECT_BINARY_DIR}/TESTS/mysql-24988/autotest.sh" "mysql-24988" "${PROJECT_BINARY_DIR}/TESTS/mysql-24988/race_report.txt")
+set_tests_properties (mysql-24988.test
   PROPERTIES PASS_REGULAR_EXPRESSION ""
   )
 
