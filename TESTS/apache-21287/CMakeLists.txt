@@ -1,4 +1,5 @@
 configure_file(autotest.sh autotest.sh COPYONLY)
+configure_file(race_report.txt race_report.txt COPYONLY)
 configure_file(danMemFuncLists.txt danMemFuncLists.txt COPYONLY)
 configure_file(danPrivilegedFuncLists.txt danPrivilegedFuncLists.txt COPYONLY)
 configure_file(apache-21287.bc apache-21287.bc COPYONLY)

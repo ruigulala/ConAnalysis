@@ -10,9 +10,9 @@ fi
 TEST_DIR='TESTS/apache-21287'
 CONANAL_DIR='lib/ConAnal'
 DOL_DIR='lib/DOL'
-BITCODE_DIR=TESTS/${1}
+BITCODE_DIR="$CONANAL_ROOT/build/TESTS/${1}"
 
-cd ${BITCODE_DIR} && opt -mem2reg ${1}.bc -o ${1}.mem2reg && mv ${1}.mem2reg ${1}.bc
+cd ${BITCODE_DIR}
 # Only the standard output info will be printed
 opt -load ../../$DOL_DIR/libDOL.so --danFuncFile danMemFuncLists.txt -load ../../$CONANAL_DIR/libConAnalysis.so -ConAnalysis ../../../TESTS/${1}/${1}.bc --ptrderef --danfunc --raceReport ${2} > /dev/null
 # ConAnalysis Debug info will be enabled

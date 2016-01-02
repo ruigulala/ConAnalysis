@@ -56,7 +56,7 @@ set_tests_properties (apache-25520.test
   )
 
 # test apache-21287
-add_test(apache-21287.test "${PROJECT_BINARY_DIR}/TESTS/apache-21287/autotest.sh" "apache-21287")
+add_test(apache-21287.test "${PROJECT_BINARY_DIR}/TESTS/apache-21287/autotest.sh" "apache-21287" "${PROJECT_BINARY_DIR}/TESTS/apache-21287/race_report.txt")
 set_tests_properties (apache-21287.test
   PROPERTIES PASS_REGULAR_EXPRESSION ""
   )

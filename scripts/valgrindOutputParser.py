@@ -90,6 +90,7 @@ def runOverNight(args):
             elif readStart:
                 logging.debug('Line ' + str(i) + ": Read Start")
                 flagReadStart = True
+                flagBlockStart = True
             elif readEnd:
                 logging.debug('Line ' + str(i) + ": Read End")
                 flagReadStart = False
@@ -122,7 +123,7 @@ def runOverNight(args):
                     del resultList[:]
                 flagReadStart = False
             elif blockEnd:
-                logging.debug('Line ' + str(i) + ": Line Break Block Ends")
+                logging.debug('Line ' + str(i) + ": Block Ends")
                 flagBlockStart = False
                 flagReadStart = False
                 if len(resultList) > 0:
@@ -171,6 +172,7 @@ def runNormal(args):
         elif readStart:
             logging.debug('Line ' + str(i) + ": Read Start")
             flagReadStart = True
+            flagBlockStart = True
         elif readEnd:
             logging.debug('Line ' + str(i) + ": Read End")
             flagReadStart = False
@@ -203,7 +205,7 @@ def runNormal(args):
                 del resultList[:]
             flagReadStart = False
         elif blockEnd:
-            logging.debug('Line ' + str(i) + ": Line Break Block Ends")
+            logging.debug('Line ' + str(i) + ": Block Ends")
             flagBlockStart = False
             flagReadStart = False
             if len(resultList) > 0:
