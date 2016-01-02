@@ -10,7 +10,7 @@ fi
 TEST_DIR='TESTS/mysql-24988'
 CONANAL_DIR='lib/ConAnal'
 DOL_DIR='lib/DOL'
-BITCODE_DIR="TESTS/${1}"
+BITCODE_DIR="$CONANAL_ROOT/build/TESTS/${1}"
 
 cd $BITCODE_DIR
 # Only the standard output info will be printed

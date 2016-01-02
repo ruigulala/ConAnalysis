@@ -14,6 +14,9 @@ then
     exit 1;
 fi
 
+# Do some clean up
+pkill -9 inotifywait
+
 if [ "$1" != "no_race_detector" ]
 then
     # Step 1: You *must* build our project using CMake before running this script.
@@ -78,20 +81,21 @@ then
     # Step 3: We'll run our LLVM static analysis pass to analyze the race
 	# Use inotify to monitor any new files within the folder
 	inotifywait -m `pwd` -e create |
-		while read file; do
+        while read path action file; do
 			echo "The race report is newly added '$file'. Start static analysis"
 			# do something with the file
 			cp $file $CONANAL_ROOT/build/TESTS/mysql-24988/
-    		cd $CONANAL_ROOT/build/TESTS/mysql-24988/
-			./autotest.sh mysql-24988 $file
+            pushd $CONANAL_ROOT/build/TESTS/mysql-24988/ > /dev/null
+            ./autotest.sh mysql-24988 $file >| "finalReport_$file" 2>&1
+            popd > /dev/null
 		done &
 
 	# Monitor Valgrind's output file to add new race reports
 	if [ -f valgrind_latest.output ]
     then
         echo "Using valgrind_lastest.output to analyze."
-        ./valgrindOutputParser.py --input valgrind_latest.output --output race_report &
+        ./valgrindOutputParser.py --input valgrind_latest.output --output race_report --mode overnight &
     else
-        ./valgrindOutputParser.py --input standard-output/valgrind.output --output race_report &
+        ./valgrindOutputParser.py --input standard-output/valgrind.output --output race_report --mode normal
     fi
 fi
