@@ -183,16 +183,25 @@ void ConAnalysis::initializeCallStack(FuncFileLineList &csinput) {
           break;
         Function * func = &*(((*listit)->getParent())->getParent());
         DEBUG(errs() << func->getName() << " contains the above ins\n");
-        //callStack_.push_back(std::make_pair(&*func, *listit));
         callStackHead_.push_back(std::make_pair(&*func, *listit));
         finishedVars_.insert(*listit);
       } else if (isa<CallInst>(*listit) || isa<InvokeInst>(*listit)) {
-        assert(cs_it != csinput.begin() &&
-            "Call Inst is the first one in the call stack!");
+        CallSite cs(*listit);
+        Function * callee = cs.getCalledFunction();
+        if (callee != NULL) {
+          // Skip llvm.dbg function
+          std::string fnname = callee->getName().str();
+          if (fnname.compare(0, 5, "llvm.") == 0)
+            continue;
+        }
+        if (cs_it == csinput.begin()) {
+          errs() << "Call Inst %" << ins2int_[*listit] << 
+            " is the first one in the call stack!\n";
+          abort();
+        }
         Function * func = &*(((*listit)->getParent())->getParent());
         DEBUG((*listit)->print(errs()); errs() << "\n";);
         DEBUG(errs() << func->getName() << " contains the above ins\n");
-        //callStack_.push_back(std::make_pair(&*func, *listit));
         callStackBody_.push_back(std::make_pair(&*func, *listit));
         break;
       } else {
@@ -226,11 +235,10 @@ bool ConAnalysis::runOnModule(Module &M) {
   errs() << "       Start ConAnalysis Pass          \n";
   errs() << "---------------------------------------\n";
   createMaps(M);
-  //printMap(M);
+  printMap(M);
   parseInput(RaceReportInput, raceReport);
   initializeCallStack(raceReport);
   getCorruptedIRs(M, labels);
-  
   return false;
 }
 
