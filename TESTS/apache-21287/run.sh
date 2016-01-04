@@ -14,9 +14,12 @@ then
     exit 1;
 fi
 
+# Do some clean up
+pkill -9 inotifywait
+
 if [ "$1" != "no_race_detector" ]
 then
-	# Step 1: You *must* build our project using CMake before running this script.
+    # Step 1: You *must* build our project using CMake before running this script.
     # Create a folder named build in the top level source code folder.
     if [ -d "$BUILD_DIRECTORY" ]
     then
@@ -55,9 +58,9 @@ then
         echo "Error: Please install valgrind before running this script."
         echo "We strongly recommend using valgrind 3.11."
     fi
-	cd $CONANAL_ROOT/TESTS/apache-21287
+    cd $CONANAL_ROOT/TESTS/apache-21287
     # Start valgrind here!
-	valgrind --tool=helgrind --trace-children=yes --read-var-info=yes $CONANAL_ROOT/concurrency-exploits/apache-21287/apache-install/bin/apachectl -k start >| valgrind_latest.output 2>&1 &
+    valgrind --tool=helgrind --trace-children=yes --read-var-info=yes $CONANAL_ROOT/concurrency-exploits/apache-21287/apache-install/bin/apachectl -k start >| valgrind_latest.output 2>&1 &
     # Bug triggering input here!
     httperf --server=127.0.1.1 --port=7000 --uri=/pippo.php?variable=1111 --num-conns=10 --num-calls=10
 fi
@@ -65,22 +68,30 @@ fi
 if [ "$1" != "no_static_analysis" ]
 then
     # Step 3: We'll run our LLVM static analysis pass to analyze the race
-	# Use inotify to monitor any new files within the folder
-	inotifywait -m `pwd` -e create |
-		while read file; do
-			echo "The race report is newly added '$file'. Start static analysis"
-			# do something with the file
-			cp $file $CONANAL_ROOT/build/TESTS/apache-21287/
-    		cd $CONANAL_ROOT/build/TESTS/apache-21287/
-			./autotest.sh apache-21287 $file
-		done &
+    # Use inotify to monitor any new files within the folder
+    inotifywait -m `pwd` -e create |
+        while read path action file; do
+            # Remove the duplicated files if there is any
+            fdupes  -dqN . > /dev/null
+            if [ -f $file ]
+            then
+                echo "The race report is newly added '$file'. Start static analysis"
+                # do something with the file
+                #cp $file $CONANAL_ROOT/build/TESTS/apache-21287/
+                #pushd $CONANAL_ROOT/build/TESTS/apache-21287/ > /dev/null
+                #./autotest.sh apache-21287 $file >| "finalReport_$file" 2>&1
+                #popd > /dev/null        
+            else
+                echo "Duplication found! Skip!"
+            fi
+        done &
 
-	# Monitor Valgrind's output file to add new race reports
-	if [ -f valgrind_latest.output ]
+    # Monitor Valgrind's output file to add new race reports
+    if [ -f valgrind_latest.output ]
     then
         echo "Using valgrind_lastest.output to analyze."
-        ./valgrindOutputParser.py --input valgrind_latest.output --output race_report &
+        ./valgrindOutputParser.py --input valgrind_latest.output --output race_report --mode overnight &
     else
-        ./valgrindOutputParser.py --input standard-output/valgrind.output --output race_report &
+        ./valgrindOutputParser.py --input standard-output/valgrind.output --output race_report --mode normal
     fi
 fi
