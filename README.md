@@ -42,7 +42,7 @@ cd path-to-llvm-source
 Install the following dependencies.
 ```
 sudo apt-get update
-sudo apt-get install build-essential subversion swig python2.7-dev libedit-dev libncurses5-dev cmake inotify-tools
+sudo apt-get install build-essential subversion swig python2.7-dev libedit-dev libncurses5-dev cmake inotify-tools fdupes
 ```
 Build LLVM together with Clang using CMake
 ```
