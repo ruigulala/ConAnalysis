@@ -77,10 +77,10 @@ then
             then
                 echo "The race report is newly added '$file'. Start static analysis"
                 # do something with the file
-                #cp $file $CONANAL_ROOT/build/TESTS/apache-21287/
-                #pushd $CONANAL_ROOT/build/TESTS/apache-21287/ > /dev/null
-                #./autotest.sh apache-21287 $file >| "finalReport_$file" 2>&1
-                #popd > /dev/null        
+                cp $file $CONANAL_ROOT/build/TESTS/apache-21287/
+                pushd $CONANAL_ROOT/build/TESTS/apache-21287/ > /dev/null
+                ./autotest.sh apache-21287 $file >| "finalReport_$file" 2>&1
+                popd > /dev/null        
             else
                 echo "Duplication found! Skip!"
             fi
