@@ -194,10 +194,10 @@ void ConAnalysis::initializeCallStack(FuncFileLineList &csinput) {
           if (fnname.compare(0, 5, "llvm.") == 0)
             continue;
         }
-        if (cs_it == csinput.begin()) {
-          errs() << "Call Inst %" << ins2int_[*listit] << 
-            " is the first one in the call stack!\n";
-          abort();
+        if (cs_it == csinput.begin() && listit == insList.begin()) {
+          errs() << "Warning: Call Inst %" << ins2int_[*listit]
+                 << " is the first one in the call stack!\n";
+          continue;
         }
         Function * func = &*(((*listit)->getParent())->getParent());
         DEBUG((*listit)->print(errs()); errs() << "\n";);
