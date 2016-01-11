@@ -24,6 +24,7 @@ typedef std::list<Instruction *> InstructionList;
 typedef std::set<std::string> StrSet;
 typedef std::set<Function *> FuncSet;
 typedef std::map<uint32_t, Value *> CorruptedArgs;
+typedef std::map<BasicBlock *, std::set<BasicBlock *>> BB2SetMap;
 
 typedef struct {
   char fileName[200];
@@ -41,6 +42,12 @@ typedef struct PtrIdxStruct {
   uint16_t idxType;
   GepIdxUnion gepIdx;
 } GepIdxStruct;
+/// Stores the corrupted variable set size for each enter & exit
+typedef struct EnterExitVal {
+  uint32_t enterVal;
+  uint32_t exitVal;
+} EnterExitVal;
 }// namespace ConAnal
+
 
 #endif  // INCLUDE_CONANAL_TYPEDEFS_H_

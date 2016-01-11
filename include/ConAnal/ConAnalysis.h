@@ -132,6 +132,8 @@ class ConAnalysis : public ModulePass {
     std::set<Value *> corruptedIR_;
     std::set<Value *> finishedVars_;
     std::map<Value *, std::list<GepIdxStruct *>> corruptedPtr_;
+    std::map<Function *, EnterExitVal> funcEnterExitValMap_;
+    std::map<Function *, BB2SetMap> dominatorMap_;
     std::list<Value *> orderedcorruptedIR_;
     std::list<std::pair<Function *, Instruction *>> callStack_;
     std::list<std::pair<Function *, Instruction *>> callStackHead_;

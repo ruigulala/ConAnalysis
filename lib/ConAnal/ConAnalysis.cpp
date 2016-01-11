@@ -52,6 +52,7 @@ void ConAnalysis::clearClassDataMember() {
   callStackHead_.clear();
   callStackBody_.clear();
   corruptedMap_.clear();
+  funcEnterExitValMap_.clear();
 }
 
 const Function* ConAnalysis::findEnclosingFunc(const Value* V) {
@@ -283,7 +284,7 @@ bool ConAnalysis::printMappedInstruction(Value * v) {
       }
     }
   } else {
-    errs() << "arg " << v->getName() << "\n";
+    errs() << "Function args: " << v->getName();
   }
   errs() << "\n";
   return true;
@@ -488,6 +489,21 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
           }
         }
       }
+      if (funcEnterExitValMap_.count(callee) != 0) {
+        EnterExitVal funcVal = funcEnterExitValMap_[callee];
+        if (funcVal.enterVal == funcVal.exitVal) {
+          if (funcEnterExitValMap_[callee].enterVal < corruptedIR_.size()) {
+            funcEnterExitValMap_[callee].enterVal = corruptedIR_.size();
+          } else if (funcEnterExitValMap_[callee].enterVal ==
+              corruptedIR_.size()) {
+            DEBUG(errs() << "Skip function " << fnname << "\n");
+            continue;
+          }
+
+        }
+      } else {
+        funcEnterExitValMap_[callee].enterVal = corruptedIR_.size();
+      }
       DEBUG(errs() << "\"" << F->getName() << "\"" << " calls "
              << "\"" << callee->getName() << "\"\n");
       DEBUG(errs() << "Callstack PUSH " << callee->getName() << "\n");
@@ -499,6 +515,7 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
       }
       DEBUG(errs() << "Callstack POP " << callStack_.front().first->getName() 
           << "\n");
+      funcEnterExitValMap_[callee].exitVal = corruptedIR_.size();
       callStack_.pop_front();
     } else if (isa<GetElementPtrInst>(&*I)) {
       int op_ii = I->getNumOperands();
@@ -579,7 +596,7 @@ uint32_t ConAnalysis::getDominators(Module &M, FuncFileLineList &danOps,
   uint32_t rv = 0;
   // ffl means FuncFileLine
   for (auto fflTuple = danOps.begin(); fflTuple != danOps.end(); fflTuple++) {
-    std::map<BasicBlock *, std::set<BasicBlock *>> dominators;
+    BB2SetMap dominators;
     std::list<Value *> dominatorSubset;
     std::string funcName = std::get<0>(*fflTuple);
     std::string fileName = std::get<1>(*fflTuple);
@@ -591,7 +608,12 @@ uint32_t ConAnalysis::getDominators(Module &M, FuncFileLineList &danOps,
     }
     assert(F != NULL && "Couldn't obtain Function * for dangerous op");
     if (F->getName().str().compare(std::get<0>(*fflTuple)) == 0) {
-      computeDominators(*F, dominators);
+      if (dominatorMap_.count(F) == 0) {
+        computeDominators(*F, dominators);
+        dominatorMap_[F] = dominators;
+      } else {
+        dominators = dominatorMap_[F];
+      }
       //printDominators(*F, dominators);
       std::string filename = std::get<1>(*fflTuple);
       uint32_t line = std::get<2>(*fflTuple);
