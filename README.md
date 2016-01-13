@@ -13,7 +13,7 @@ http://llvm.org/releases/download.html
 tar -xvf llvm-3.6.1.src.tar.xz
 ```
 
-* Download the source code of clang 3.6.1 from the following website.
+* Download the source code of clang 3.6.1 & Compiler RT from the following website.
 ```
 http://llvm.org/releases/download.html
 ```
@@ -22,12 +22,14 @@ http://llvm.org/releases/download.html
 The path is path-to-llvm-source/tools/
 ```
 tar -xvf cfe-3.6.1.src.tar.xz -C llvm-3.6.1.src/tools/
+tar -xvf compiler-rt-3.6.1.src.tar.xz -C llvm-3.6.1.src/projects/
 ```
 
 * Rename the clang source code folder to clang
 The clang source code folder is cfe-3.6.1.src under llvm-3.6.1.src/tools/
 ```
 mv cfe-3.6.1.src clang
+mv compiler-rt-3.6.1.src compiler-rt
 ```
 
 * Compile LLVM
