@@ -61,6 +61,7 @@ then
     cd $CONANAL_ROOT/TESTS/apache-21287
     # Start valgrind here!
     valgrind --tool=helgrind --trace-children=yes --read-var-info=yes $CONANAL_ROOT/concurrency-exploits/apache-21287/apache-install/bin/apachectl -k start >| valgrind_latest.output 2>&1 &
+    #$CONANAL_ROOT/concurrency-exploits/apache-21287/apache-install/bin/apachectl -k start
     # Bug triggering input here!
     httperf --server=127.0.1.1 --port=7000 --uri=/pippo.php?variable=1111 --num-conns=10 --num-calls=10
 fi
