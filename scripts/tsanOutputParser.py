@@ -19,7 +19,7 @@ start_threads (worker.c:1083)
 
 # All the defined regular expressions
 regCallStackLine = re.compile("[\s]*#[0-9]* ([a-zA-Z0-9_:~]*) "
-        "([a-zA-Z0-9_:~\./\-]*)([0-9A-Za-z_\-\.]*:[0-9]*):[0-9]* .*")
+        "([a-zA-Z0-9_:~\./\-]*)(:[0-9]*)(:[0-9]*)? .*")
 # Detects the start of a variable read
 regReadStart = re.compile("[\s]*(Read|Previous read).*")
 # Detects the start of a race report block
