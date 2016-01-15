@@ -12,13 +12,14 @@ This python script transfers tsan race report to the format required by
 our LLVM pass.
 A typical tsan race report line
 #0 start_threads /home/ruigu/Workspace/concurrency-exploits/apache-21287/httpd-2.0.48/server/mpm/worker/worker.c:1083:13 (httpd+0x000000575add)
+#0 check_grant(THD*, unsigned long, st_table_list*, unsigned int, unsigned int, bool) /home/bg2539/workspace/ConAnalysis/concurrency-exploits/mysql-24988/mysql-5.0.27/sql/sql_acl.cc:3634 (mysqld+0x0000005833fb)
 will be changed to
 start_threads (worker.c:1083)
 
 '''
 
 # All the defined regular expressions
-regCallStackLine = re.compile("[\s]*#[0-9]* ([a-zA-Z0-9_:~]*) "
+regCallStackLine = re.compile("[\s]*#[0-9]* ([a-zA-Z0-9_:~]*)(\([a-zA-Z0-9\*, _]*\))? "
         "([a-zA-Z0-9_:~\./\-]*)(:[0-9]*)(:[0-9]*)? .*")
 # Detects the start of a variable read
 regReadStart = re.compile("[\s]*(Read|Previous read).*")
@@ -86,10 +87,10 @@ def runOverNight(args):
                 flagBlockStart = True
             elif callStackLine:
                 if flagReadStart and flagBlockStart:
-                    fileName = os.path.basename(os.path.normpath(callStackLine.group(2)))
+                    fileName = os.path.basename(os.path.normpath(callStackLine.group(3)))
                     logging.debug('Line ' + str(i) + ": Writing Content")
                     resultList.append(callStackLine.group(1) + " "
-                            + "(" + fileName + callStackLine.group(3) + ")\n")
+                            + "(" + fileName + callStackLine.group(4) + ")\n")
             elif lineBreak:
                 logging.debug('Line ' + str(i) + ": Line Break")
                 if len(resultList) > 0:
@@ -150,10 +151,10 @@ def runNormal(args):
             flagBlockStart = True
         elif callStackLine:
             if flagReadStart and flagBlockStart:
-                fileName = os.path.basename(os.path.normpath(callStackLine.group(2)))
+                fileName = os.path.basename(os.path.normpath(callStackLine.group(3)))
                 logging.debug('Line ' + str(i) + ": Writing Content")
                 resultList.append(callStackLine.group(1) + " "
-                        + "(" + fileName + callStackLine.group(3) + ")\n")
+                        + "(" + fileName + callStackLine.group(4) + ")\n")
         elif lineBreak:
             logging.debug('Line ' + str(i) + ": Line Break")
             if len(resultList) > 0:
