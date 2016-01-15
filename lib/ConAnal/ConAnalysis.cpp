@@ -188,9 +188,9 @@ void ConAnalysis::initializeCallStack(FuncFileLineList &csinput) {
         DEBUG(errs() << func->getName() << " contains the above ins\n");
         callStackHead_.push_back(std::make_pair(&*func, *listit));
         finishedVars_.insert(*listit);
-        errs() << "-------------------------\n";
-        (*listit)->print(errs());errs() << "\n"; 
-        errs() << "-------------------------\n";
+        //errs() << "-------------------------\n";
+        //(*listit)->print(errs());errs() << "\n"; 
+        //errs() << "-------------------------\n";
       } else if (isa<CallInst>(*listit) || isa<InvokeInst>(*listit)) {
         CallSite cs(*listit);
         Function * callee = cs.getCalledFunction();
@@ -225,9 +225,9 @@ void ConAnalysis::initializeCallStack(FuncFileLineList &csinput) {
           break;
         callStackHead_.push_back(std::make_pair(&*func, *listit));
         finishedVars_.insert(*listit);
-        errs() << "-------------------------\n";
-        (*listit)->print(errs());errs() << "\n"; 
-        errs() << "-------------------------\n";
+        //errs() << "-------------------------\n";
+        //(*listit)->print(errs());errs() << "\n"; 
+        //errs() << "-------------------------\n";
       }
     }
     DEBUG(errs() << "\n");
@@ -327,7 +327,6 @@ bool ConAnalysis::printMap(Module &M) {
 
 bool ConAnalysis::getCorruptedIRs(Module &M, DOL &labels) {
   DEBUG(errs() << "---- Getting Corrupted LLVM IRs ----\n");
-  errs() << "callStackHead_ size is " << callStackHead_.size() << "\n"; 
   for (auto cs_itr : callStackHead_) {
     // Each time, we create a call stack using one element from callStackHead
     // and the whole callStackBody

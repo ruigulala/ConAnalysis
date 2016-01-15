@@ -11,7 +11,7 @@ include_directories(include)
 add_subdirectory(lib/DOL)
 add_subdirectory(lib/ConAnal)
 add_subdirectory(TESTS/libsafe-cve-1125) # real exploit exists
-add_subdirectory(TESTS/kernel-cve-2004-1235) # real exploit exists
+#add_subdirectory(TESTS/kernel-cve-2004-1235) # real exploit exists
 add_subdirectory(TESTS/libvirt-cve-1447) # real exploit exists
 add_subdirectory(TESTS/apache-25520) # real exploit exists
 add_subdirectory(TESTS/apache-21287) # concurrency bug
@@ -37,10 +37,10 @@ set_tests_properties (libsafe-cve-1125.test
   )
 
 # test kernel-CVE-2004-1235
-add_test(kernel-cve-2004-1235.test "${PROJECT_BINARY_DIR}/TESTS/kernel-cve-2004-1235/autotest.sh" "kernel-cve-2004-1235")
-set_tests_properties (kernel-cve-2004-1235.test
-  PROPERTIES PASS_REGULAR_EXPRESSION "\\[ 3301 3302 3313 3314 3328 3329 3330 3331 3333 sem 2274 3335 3336 mapping 696 697 698 699 704 head 679 680 681 682 683 705 706 707 708 709 710 711 712 713 714 716 entry1 178 179 180 181 prev next 5597 5598 5599 5600 182 183 184 185 186 717 718 719 new head 190 191 next 5556 5557 5559 5558 192 720 722 723 addr 105 106 107 108 109 110 111 724 725 726 727 728 addr 114 729 730 731 733 v 685 686 page 770 771 addr 173 772 773 774 736 738 739 743 744 748 749 addr 691 750 page 266 267 270 271 addr 1134 272 273 274 761 3337 3342 3343 3344 3345 3346 3347 3348 3349 3350 3351 3352 3353 3354 3355 3356 3357 3362 3363 3366 3368 3369 3370 mapping 783 788 789 790 791 792 793 795 797 798 801 802 806 807 812 page 859 860 864 865 873 874 815 817 818 822 823 3371 3373 3374 3375 3376 3379 3381 3382 sem 2278 3385 3387 3389 3390 3267 3269 3270 3289 3295 \\]"
-  )
+#add_test(kernel-cve-2004-1235.test "${PROJECT_BINARY_DIR}/TESTS/kernel-cve-2004-1235/autotest.sh" "kernel-cve-2004-1235")
+#set_tests_properties (kernel-cve-2004-1235.test
+#  PROPERTIES PASS_REGULAR_EXPRESSION "\\[ 3301 3302 3313 3314 3328 3329 3330 3331 3333 sem 2274 3335 3336 mapping 696 697 698 699 704 head 679 680 681 682 683 705 706 707 708 709 710 711 712 713 714 716 entry1 178 179 180 181 prev next 5597 5598 5599 5600 182 183 184 185 186 717 718 719 new head 190 191 next 5556 5557 5559 5558 192 720 722 723 addr 105 106 107 108 109 110 111 724 725 726 727 728 addr 114 729 730 731 733 v 685 686 page 770 771 addr 173 772 773 774 736 738 739 743 744 748 749 addr 691 750 page 266 267 270 271 addr 1134 272 273 274 761 3337 3342 3343 3344 3345 3346 3347 3348 3349 3350 3351 3352 3353 3354 3355 3356 3357 3362 3363 3366 3368 3369 3370 mapping 783 788 789 790 791 792 793 795 797 798 801 802 806 807 812 page 859 860 864 865 873 874 815 817 818 822 823 3371 3373 3374 3375 3376 3379 3381 3382 sem 2278 3385 3387 3389 3390 3267 3269 3270 3289 3295 \\]"
+#  )
 
 # test libvirt-cve-1447 
 add_test(libvirt-cve-1447.test "${PROJECT_BINARY_DIR}/TESTS/libvirt-cve-1447/autotest.sh" "libvirt-cve-1447" "${PROJECT_BINARY_DIR}/TESTS/libvirt-cve-1447/race_report.txt")
@@ -63,7 +63,7 @@ set_tests_properties (apache-21287.test
 # test mysql-24988
 add_test(mysql-24988.test "${PROJECT_BINARY_DIR}/TESTS/mysql-24988/autotest.sh" "mysql-24988" "${PROJECT_BINARY_DIR}/TESTS/mysql-24988/race_report.txt")
 set_tests_properties (mysql-24988.test
-  PROPERTIES PASS_REGULAR_EXPRESSION ""
+  PROPERTIES PASS_REGULAR_EXPRESSION "\\[ 150037 150038 155892 155893 150829 150830 150833 150844 150845 150846 149415 \\]"
   )
 
 # test freebsd-cve-3527a 
