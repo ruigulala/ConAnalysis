@@ -639,14 +639,18 @@ uint32_t ConAnalysis::getDominators(Module &M, FuncFileLineList &danOps,
       Instruction * danOpI = sourcetoIRmap_[fileLinePair].front();
       auto it = dominators[danOpI->getParent()].begin();
       auto it_end = dominators[danOpI->getParent()].end();
+      bool corruptBranchFlag = false;
       for (; it != it_end; ++it) {
         for (auto i = (*it)->begin(); i != (*it)->end(); ++i) {
+          if (isa<BranchInst>(&*i) && corruptedIR_.count(&*i)) {
+            corruptBranchFlag = true;
+          }
           dominatorSubset.push_back(&*i);
           if (&*i == danOpI)
             break;
         }
       }
-      if (!getFeasiblePath(M, dominatorSubset))
+      if (!corruptBranchFlag || !getFeasiblePath(M, dominatorSubset))
         continue;
       DEBUG(errs() << "Dangerous Operation Basic Block & Instruction\n");
       DEBUG(errs() << danOpI->getParent()->getName() << " & "
