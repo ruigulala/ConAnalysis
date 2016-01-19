@@ -152,6 +152,8 @@ def runNormal(args):
         elif callStackLine:
             if flagReadStart and flagBlockStart:
                 fileName = os.path.basename(os.path.normpath(callStackLine.group(3)))
+                if fileName == "tsan_interceptors.cc":
+                    continue
                 logging.debug('Line ' + str(i) + ": Writing Content")
                 resultList.append(callStackLine.group(1) + " "
                         + "(" + fileName + callStackLine.group(4) + ")\n")
