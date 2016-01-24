@@ -19,8 +19,8 @@ start_threads (worker.c:1083)
 '''
 
 # All the defined regular expressions
-regCallStackLine = re.compile("[\s]*#[0-9]* ([a-zA-Z0-9_:~]*)(\([a-zA-Z0-9\*, _]*\))? "
-        "([a-zA-Z0-9_:~\./\-]*)(:[0-9]*)(:[0-9]*)? .*")
+regCallStackLine = re.compile("[\s]*#[0-9]* ([a-zA-Z0-9_:~]*)([a-zA-Z0-9\*, _&\(\)]*)? "
+        "([a-zA-Z0-9_~\./\-]*)(:[0-9]*)(:[0-9]*)? .*")
 # Detects the start of a variable read
 regReadStart = re.compile("[\s]*(Read|Previous read).*")
 # Detects the start of a race report block
@@ -155,6 +155,7 @@ def runNormal(args):
                 if fileName == "tsan_interceptors.cc":
                     continue
                 logging.debug('Line ' + str(i) + ": Writing Content")
+                print fileName
                 resultList.append(callStackLine.group(1) + " "
                         + "(" + fileName + callStackLine.group(4) + ")\n")
         elif lineBreak:
