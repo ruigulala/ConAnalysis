@@ -68,7 +68,7 @@ const Function* ConAnalysis::findEnclosingFunc(const Value* V) {
 const MDNode* ConAnalysis::findVar(const Value* V, const Function* F) {
   for (const_inst_iterator Iter = inst_begin(F), End = inst_end(F);
       Iter != End; ++Iter) {
-    const Instruction* I = &*Iter;
+    const Instruction * I = &*Iter;
     if (const DbgDeclareInst* DbgDeclare = dyn_cast<DbgDeclareInst>(I)) {
       if (DbgDeclare->getAddress() == V)
         return DbgDeclare->getVariable();
@@ -226,7 +226,7 @@ void ConAnalysis::initializeCallStack(FuncFileLineList &csinput) {
         callStackHead_.push_back(std::make_pair(&*func, *listit));
         finishedVars_.insert(*listit);
         //errs() << "-------------------------\n";
-        //(*listit)->print(errs());errs() << "\n"; 
+        //(*listit)->print(errs());errs() << "\n";
         //errs() << "-------------------------\n";
       }
     }
@@ -236,7 +236,46 @@ void ConAnalysis::initializeCallStack(FuncFileLineList &csinput) {
   return;
 }
 
+bool ConAnalysis::iterateLoops(std::set<BasicBlock *> &firstInsBBSet, Loop *L,
+    unsigned nesting) {
+  bool rv = false;
+  Loop::block_iterator bb;
+  for(bb = L->block_begin(); bb != L->block_end(); ++bb) {
+    if (firstInsBBSet.count(*bb))
+      return true;
+  }
+  std::vector<Loop*> subLoops= L->getSubLoops();
+  Loop::iterator j, f;
+  for (j = subLoops.begin(), f = subLoops.end(); j != f; ++j) {
+    rv = iterateLoops(firstInsBBSet,*j, nesting + 1);
+    if (rv)
+      return true;
+  }
+  return false;
+}
+
+bool ConAnalysis::checkLoop(Module &M) {
+  for (auto funciter = M.getFunctionList().begin();
+        funciter != M.getFunctionList().end(); funciter++) {
+    if (funciter->isDeclaration())
+      continue;
+    LoopInfo &LI = getAnalysis<LoopInfo>(*funciter);
+    std::set<BasicBlock *> firstInsBBSet;
+    bool rv = false;
+    for (auto cs_itr : callStackHead_) {
+      firstInsBBSet.insert(cs_itr.second->getParent());
+    }
+    for (LoopInfo::iterator i = LI.begin(), e = LI.end(); i != e; ++i) {
+      rv = iterateLoops(firstInsBBSet, *i, 0);
+      if (rv)
+        return true;
+    }
+  }
+  return true;
+}
+
 bool ConAnalysis::runOnModule(Module &M) {
+  bool inLoop = false;
   clearClassDataMember();
   DOL &labels = getAnalysis<DOL>();
   FuncFileLineList raceReport;
@@ -247,7 +286,11 @@ bool ConAnalysis::runOnModule(Module &M) {
   printMap(M);
   parseInput(RaceReportInput, raceReport);
   initializeCallStack(raceReport);
-  getCorruptedIRs(M, labels);
+  inLoop = checkLoop(M);
+  if (inLoop)
+    //errs() << "==== In Loop ! ====\n";
+    DEBUG(errs() << "==== In Loop ! ====\n");
+  getCorruptedIRs(M, labels, inLoop);
   return false;
 }
 
@@ -325,7 +368,7 @@ bool ConAnalysis::printMap(Module &M) {
   return false;
 }
 
-bool ConAnalysis::getCorruptedIRs(Module &M, DOL &labels) {
+bool ConAnalysis::getCorruptedIRs(Module &M, DOL &labels, bool inLoop) {
   DEBUG(errs() << "---- Getting Corrupted LLVM IRs ----\n");
   for (auto cs_itr : callStackHead_) {
     // Each time, we create a call stack using one element from callStackHead
@@ -354,6 +397,54 @@ bool ConAnalysis::getCorruptedIRs(Module &M, DOL &labels) {
     errs() << "---- Part 1: Dataflow Result ---- \n";
     printList(orderedcorruptedIR_);
     errs() << "\n";
+
+    // Check whether the corrupted variable is contained within a br instruction
+    if (inLoop) {
+      Function *F = cs_itr.first;
+      Instruction *I = cs_itr.second; 
+      bool corruptInBr = false;
+      for (auto itr = orderedcorruptedIR_.begin(); 
+          itr != orderedcorruptedIR_.end(); itr++) {
+        //if (isa<BranchInst>(*itr)) {
+          //Instruction * brIns = dyn_cast<Instruction>(*itr);
+          //LoopInfo &LI = getAnalysis<LoopInfo>(*F);
+          //BasicBlock * brBB = brIns->getParent();
+          //if ((LI.getLoopFor(brBB))->isLoopExiting(brBB)) {
+              //errs() << "**************************************************\n";
+              //errs() << "                Busy Loop Detected!               \n";
+              //errs() << "%" << ins2int_[I] <<
+                //" may have the control of breaking out a loop\n";
+              //errs() << "**************************************************\n";
+              //errs() << "\n";
+              //break;
+          //}
+        //}
+        if (isa<ICmpInst>(*itr)) {
+          DEBUG(errs() << "==== if statement found ! ====\n");
+          F = dyn_cast<Instruction>(*itr)->getParent()->getParent();
+          I = dyn_cast<Instruction>(*itr);
+          corruptInBr = true;
+          break;
+        }
+      }
+
+      if (corruptInBr) {
+        BasicBlock * BB = I->getParent();
+        for (succ_iterator SI = succ_begin(BB), E = succ_end(BB); SI != E;
+            ++SI) {
+          LoopInfo &LI = getAnalysis<LoopInfo>(*F);
+          if ((LI.getLoopFor(I->getParent()))->isLoopExiting(*SI)) {
+              errs() << "**************************************************\n";
+              errs() << "                Busy Loop Detected!               \n";
+              errs() << "%" << ins2int_[I] <<
+                " may have the control of breaking out a loop\n";
+              errs() << "**************************************************\n";
+              errs() << "\n";
+              break;
+          }
+        }
+      }
+    }
 
     std::set<Function *> corruptedIRFuncSet;
     for (auto IR = corruptedIR_.begin(); IR != corruptedIR_.end(); IR++) {

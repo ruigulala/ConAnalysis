@@ -12,10 +12,12 @@ add_subdirectory(lib/DOL)
 add_subdirectory(lib/ConAnal)
 add_subdirectory(TESTS/libsafe-cve-1125) # real exploit exists
 add_subdirectory(TESTS/libvirt-cve-1447) # real exploit exists
-add_subdirectory(TESTS/apache-25520) # real exploit exists
 add_subdirectory(TESTS/apache-21287) # concurrency bug
+add_subdirectory(TESTS/apache-25520) # real exploit exists
+add_subdirectory(TESTS/apache-2.4.18) # concurrency bug
 add_subdirectory(TESTS/mysql-24988) # concurrency bug
 add_subdirectory(TESTS/memcached-1.4.25) # concurrency bug
+add_subdirectory(TESTS/ssdb-1.9.2) # concurrency bug
 #add_subdirectory(TESTS/freebsd-cve-3527a)
 #add_subdirectory(TESTS/freebsd-osvdb-58543)
 #add_subdirectory(TESTS/kernel-cve-2004-1235) # real exploit exists
