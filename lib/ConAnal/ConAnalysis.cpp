@@ -241,15 +241,17 @@ bool ConAnalysis::iterateLoops(std::set<BasicBlock *> &firstInsBBSet, Loop *L,
   bool rv = false;
   Loop::block_iterator bb;
   for(bb = L->block_begin(); bb != L->block_end(); ++bb) {
-    if (firstInsBBSet.count(*bb))
+    if (firstInsBBSet.count(*bb)) {
       return true;
+    }
   }
   std::vector<Loop*> subLoops= L->getSubLoops();
   Loop::iterator j, f;
   for (j = subLoops.begin(), f = subLoops.end(); j != f; ++j) {
     rv = iterateLoops(firstInsBBSet,*j, nesting + 1);
-    if (rv)
+    if (rv) {
       return true;
+    }
   }
   return false;
 }
@@ -267,11 +269,12 @@ bool ConAnalysis::checkLoop(Module &M) {
     }
     for (LoopInfo::iterator i = LI.begin(), e = LI.end(); i != e; ++i) {
       rv = iterateLoops(firstInsBBSet, *i, 0);
-      if (rv)
+      if (rv) {
         return true;
+      }
     }
   }
-  return true;
+  return false;
 }
 
 bool ConAnalysis::runOnModule(Module &M) {
@@ -288,8 +291,7 @@ bool ConAnalysis::runOnModule(Module &M) {
   initializeCallStack(raceReport);
   inLoop = checkLoop(M);
   if (inLoop)
-    //errs() << "==== In Loop ! ====\n";
-    DEBUG(errs() << "==== In Loop ! ====\n");
+    errs() << "==== First Instruction Is In A Loop ! ====\n";
   getCorruptedIRs(M, labels, inLoop);
   return false;
 }
