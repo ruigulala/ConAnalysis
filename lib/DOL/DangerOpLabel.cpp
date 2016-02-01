@@ -72,6 +72,7 @@ bool DOL::findDangerousOp(Module &M, AliasAnalysis &AA, FuncSet &fnSet) {
         if (MDNode *N = I->getMetadata("dbg")) {
           DILocation Loc(N);
           std::string fileName = Loc.getFilename().str();
+          fileName = fileName.substr(fileName.find_last_of("\\/") + 1);
           std::string funcName = F->getName();
           uint32_t lineNum = Loc.getLineNumber();
           FuncFileLine opEntry = std::make_tuple(funcName, fileName, lineNum);
@@ -117,6 +118,7 @@ bool DOL::findDangerousOp(Module &M, AliasAnalysis &AA, FuncSet &fnSet) {
             DILocation Loc(N);
             std::string funcName = F->getName();
             std::string fileName = Loc.getFilename().str();
+            fileName = fileName.substr(fileName.find_last_of("\\/") + 1);
             uint32_t lineNum = Loc.getLineNumber();
             FuncFileLine opEntry = std::make_tuple(funcName, fileName, 
                 lineNum);

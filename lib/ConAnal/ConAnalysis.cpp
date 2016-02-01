@@ -305,8 +305,9 @@ bool ConAnalysis::createMaps(Module &M) {
       if (MDNode *N = I->getMetadata("dbg")) {
         DILocation Loc(N);
         uint32_t line = Loc.getLineNumber();
-        StringRef file = Loc.getFilename();
-        sourcetoIRmap_[std::make_pair(file.str(), line)].push_back(&*I);
+        std::string file = Loc.getFilename().str();
+        file = file.substr(file.find_last_of("\\/") + 1);
+        sourcetoIRmap_[std::make_pair(file, line)].push_back(&*I);
       } else {
         // There might be a lot of generated LLVM IRs couldn't map to any
         // line of the source code.
@@ -750,8 +751,10 @@ uint32_t ConAnalysis::getDominators(Module &M, FuncFileLineList &danOps,
              << ins2int_[&*danOpI] << "\n");
       if (MDNode *N = danOpI->getMetadata("dbg")) {
         DILocation Loc(N);
+        std::string fileName = Loc.getFilename().str();
         errs() << "Function: " << F->getName().str() << "(...)"
-            << " Location: " << "(" << Loc.getFilename().str() << ":"
+            << " Location: " << "("
+            << fileName.substr(fileName.find_last_of("\\/") + 1) << ":"
             << Loc.getLineNumber() << ")\n";
       }
       rv++;
