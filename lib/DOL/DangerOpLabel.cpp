@@ -76,11 +76,14 @@ bool DOL::findDangerousOp(Module &M, AliasAnalysis &AA, FuncSet &fnSet) {
           std::string funcName = F->getName();
           uint32_t lineNum = Loc.getLineNumber();
           FuncFileLine opEntry = std::make_tuple(funcName, fileName, lineNum);
+          FileLine opMapEntry = std::make_pair(fileName, lineNum);
+          // TODO: This should be changed to use the map
           if (std::find(danPtrOps_.begin(), danPtrOps_.end(), opEntry) ==
               danPtrOps_.end()) {
             DEBUG(errs() << funcName << " (" << fileName
                 << ":" << lineNum << ")\n");
             danPtrOps_.push_front(opEntry);
+            danPtrOpsMap_[opMapEntry] = false;
           }
         }
       } else if (isa<CallInst>(&*I) || isa<InvokeInst>(&*I)) {
@@ -122,11 +125,14 @@ bool DOL::findDangerousOp(Module &M, AliasAnalysis &AA, FuncSet &fnSet) {
             uint32_t lineNum = Loc.getLineNumber();
             FuncFileLine opEntry = std::make_tuple(funcName, fileName, 
                 lineNum);
+            FileLine opMapEntry = std::make_pair(fileName, lineNum);
+            // TODO: This should be changed to use the map
             if (std::find(danFuncOps_.begin(), danFuncOps_.end(), opEntry) ==
                 danFuncOps_.end()) {
               DEBUG(errs() << funcName << " (" << fileName
                 << ":" << lineNum << ")\n");
                 danFuncOps_.push_front(opEntry);
+                danFuncOpsMap_[opMapEntry] = false;
             }
           }
         }

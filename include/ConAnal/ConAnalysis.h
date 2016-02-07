@@ -46,6 +46,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "ConAnal/DangerOpLabel.h"
+#include "ConAnal/ControlDependenceGraph.h"
 #include "ConAnal/typedefs.h"
 
 using namespace llvm;
@@ -67,7 +68,7 @@ class ConAnalysis : public ModulePass {
     StringRef getOriginalName(const Value* V);
     ///
     bool add2CrptList(Value * corruptedVal);
-    ///
+    /// Print the global index of the instructions and IR form
     void printList(std::list<Value *> &inputset);
     ///
     void printSet(std::set<BasicBlock *> &inputset);
@@ -92,10 +93,15 @@ class ConAnalysis : public ModulePass {
     ///
     virtual bool printMap(Module &M);
     ///
-    virtual bool getCorruptedIRs(Module &M, DOL &labels, bool inLoop);
+    virtual bool getCorruptedIRs(Module &M, DOL &labels, bool inLoop,
+        ControlDependenceGraphs &CDGs);
     ///
     virtual bool intraDataflowAnalysis(Function *, Instruction *,
-                                       CorruptedArgs & corruptedparams);
+                                       CorruptedArgs &corruptedparams,
+                                       ControlDependenceGraphs &CDGs,
+                                       bool ctrlDep, DOL &labels);
+    virtual uint32_t printInterCtrlDepResult(
+        std::map<FileLine, std::list<Value *>> resultMap);
     ///
     virtual uint32_t getDominators(Module &M, FuncFileLineList &csinput,
         std::set<Function *> &corruptedIRFuncSet);
@@ -127,14 +133,20 @@ class ConAnalysis : public ModulePass {
       AU.setPreservesAll();
       AU.addRequired<DOL>();
       AU.addRequired<LoopInfo>();
+      AU.addRequired<ControlDependenceGraphs>();
     }
 
  private:
     std::map<Instruction *, int> ins2int_;
     uint64_t ins_count_ = 1;
+    bool controlDependent = false;
     /// <fileName, lineNum> -> list<Instruction *>
     std::map<std::pair<std::string, uint32_t>, InstructionList> sourcetoIRmap_;
     std::set<Value *> corruptedIR_;
+    std::list<Instruction *> corruptedBr_;
+    std::list<Instruction *> corruptedCallIns_;
+    std::map<FileLine, std::list<Value *>> interCtrlDepPtr_;
+    std::map<FileLine, std::list<Value *>> interCtrlDepFunc_;
     std::set<Value *> finishedVars_;
     std::map<Value *, std::list<GepIdxStruct *>> corruptedPtr_;
     std::map<Function *, EnterExitVal> funcEnterExitValMap_;

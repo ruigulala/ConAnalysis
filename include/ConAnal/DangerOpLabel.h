@@ -48,7 +48,9 @@ class DOL : public ModulePass {
  public:
     static char ID; // Pass identification, replacement for typeid
     FuncFileLineList danPtrOps_;
+    FileLineMap danPtrOpsMap_;
     FuncFileLineList danFuncOps_;
+    FileLineMap danFuncOpsMap_;
     StrSet danFuncs_;
     DOL() : ModulePass(ID) {
     }

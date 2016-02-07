@@ -19,7 +19,9 @@ using namespace llvm;
 namespace ConAnal {
 /* <functionName, fileName, lineNum> */
 typedef std::tuple<std::string, std::string, uint32_t> FuncFileLine;
+typedef std::pair<std::string, uint32_t> FileLine;
 typedef std::list<FuncFileLine> FuncFileLineList;
+typedef std::map<FileLine, bool> FileLineMap;
 typedef std::list<Instruction *> InstructionList;
 typedef std::set<std::string> StrSet;
 typedef std::set<Function *> FuncSet;

@@ -281,6 +281,7 @@ bool ConAnalysis::runOnModule(Module &M) {
   bool inLoop = false;
   clearClassDataMember();
   DOL &labels = getAnalysis<DOL>();
+  ControlDependenceGraphs &CDGs = getAnalysis<ControlDependenceGraphs>();
   FuncFileLineList raceReport;
   errs() << "---------------------------------------\n";
   errs() << "       Start ConAnalysis Pass          \n";
@@ -292,7 +293,7 @@ bool ConAnalysis::runOnModule(Module &M) {
   inLoop = checkLoop(M);
   if (inLoop)
     errs() << "==== First Instruction Is In A Loop ! ====\n";
-  getCorruptedIRs(M, labels, inLoop);
+  getCorruptedIRs(M, labels, inLoop, CDGs);
   return false;
 }
 
@@ -337,9 +338,17 @@ bool ConAnalysis::printMappedInstruction(Value * v) {
         errs() << "XXX ";
       }
     }
+    if (MDNode *N = dyn_cast<Instruction>(v)->getMetadata("dbg")) {
+      DILocation Loc(N);
+      std::string fileName = Loc.getFilename().str();
+      errs() << " Location: " << "("
+          << fileName.substr(fileName.find_last_of("\\/") + 1) << ":"
+          << Loc.getLineNumber() << ")";
+    }
   } else {
     errs() << "Function args: " << v->getName();
   }
+  
   errs() << "\n";
   return true;
 }
@@ -371,7 +380,8 @@ bool ConAnalysis::printMap(Module &M) {
   return false;
 }
 
-bool ConAnalysis::getCorruptedIRs(Module &M, DOL &labels, bool inLoop) {
+bool ConAnalysis::getCorruptedIRs(Module &M, DOL &labels, bool inLoop,
+    ControlDependenceGraphs &CDGs) {
   DEBUG(errs() << "---- Getting Corrupted LLVM IRs ----\n");
   for (auto cs_itr : callStackHead_) {
     // Each time, we create a call stack using one element from callStackHead
@@ -388,7 +398,8 @@ bool ConAnalysis::getCorruptedIRs(Module &M, DOL &labels, bool inLoop) {
       DEBUG(errs() << "Original Callstack: Go into \"" << loc.first->getName()
              << "\"\n");
       bool addFuncRet = false;
-      addFuncRet = intraDataflowAnalysis(loc.first, loc.second, coparams);
+      addFuncRet = intraDataflowAnalysis(loc.first, loc.second, coparams, CDGs,
+          false, labels);
       DEBUG(errs() << "Callstack POP " << loc.first->getName() << "\n");
       callStack_.pop_front();
       if (addFuncRet && !callStack_.empty()) {
@@ -404,9 +415,9 @@ bool ConAnalysis::getCorruptedIRs(Module &M, DOL &labels, bool inLoop) {
     // Check whether the corrupted variable is contained within a br instruction
     if (inLoop) {
       Function *F = cs_itr.first;
-      Instruction *I = cs_itr.second; 
+      Instruction *I = cs_itr.second;
       bool corruptInBr = false;
-      for (auto itr = orderedcorruptedIR_.begin(); 
+      for (auto itr = orderedcorruptedIR_.begin();
           itr != orderedcorruptedIR_.end(); itr++) {
         //if (isa<BranchInst>(*itr)) {
           //Instruction * brIns = dyn_cast<Instruction>(*itr);
@@ -462,7 +473,8 @@ bool ConAnalysis::getCorruptedIRs(Module &M, DOL &labels, bool inLoop) {
       errs() << "     Pointer Dereference Analysis Result                 \n";
       errs() << "   # of static pointer deference statements: "
         << labels.danPtrOps_.size() << "\n";
-      uint32_t vulNum = getDominators(M, labels.danPtrOps_, corruptedIRFuncSet);
+      uint32_t vulNum = printInterCtrlDepResult(interCtrlDepPtr_);
+      vulNum += getDominators(M, labels.danPtrOps_, corruptedIRFuncSet);
       errs() << "\n   # of detected potential vulnerabilities: "
         << vulNum << "\n";
       errs() << "*********************************************************\n";
@@ -473,7 +485,8 @@ bool ConAnalysis::getCorruptedIRs(Module &M, DOL &labels, bool inLoop) {
       errs() << "     Dangerous Function Analysis Result                  \n";
       errs() << "   # of static dangerous function statements: "
         << labels.danFuncs_.size() << "\n";
-      uint32_t vulNum = getDominators(M, labels.danFuncOps_,
+      uint32_t vulNum = printInterCtrlDepResult(interCtrlDepFunc_);
+      vulNum += getDominators(M, labels.danFuncOps_,
           corruptedIRFuncSet);
       errs() << "\n   # of detected potential vulnerabilities: "
         << vulNum << "\n";
@@ -485,8 +498,13 @@ bool ConAnalysis::getCorruptedIRs(Module &M, DOL &labels, bool inLoop) {
 }
 
 bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
-                                        CorruptedArgs & corruptedparams) {
+                                        CorruptedArgs &corruptedparams,
+                                        ControlDependenceGraphs &CDGs,
+                                        bool ctrlDep, DOL &labels) {
+  DEBUG(errs() << "Enter intraDataflowAnalysis\n");
   bool rv = false;
+  bool ctrlDepWithinCurFunc = false;
+  std::list<Instruction *> localCorruptedBr_;
   auto I = inst_begin(F);
   if (ins != nullptr) {
     for (; I != inst_end(F); ++I) {
@@ -527,6 +545,10 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
     }
     assert(I != inst_end(F) && "Couldn't find callstack instruction.");
   }
+
+  // Obtain the Control Dependence Graph of the current function
+  ControlDependenceGraphBase &cdgBase = CDGs[F];
+
   if (I == inst_end(F)) {
     DEBUG(errs() << "Couldn't obtain the source code of function \""
         << F->getName() << "\"\n");
@@ -557,7 +579,71 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
       }
     }
   }
+  // Forward taint analysis on each instruction
   for (; I != inst_end(F); ++I) {
+    // Check if the current instruction is control dependent on any corrupted
+    // intra-procedural branch instruction
+    bool influence = false;
+    for (auto brIns : localCorruptedBr_) {
+      BasicBlock * brBB = brIns->getParent();
+      BasicBlock * insBB = I->getParent();
+      if (cdgBase.influences(brBB, insBB)) {
+        ctrlDepWithinCurFunc = true;
+        influence = true;
+        break;
+      }
+    }
+    
+    if (!influence)
+      ctrlDepWithinCurFunc = false;
+
+    // Check if this instruction is a dangerous operation and if the cross
+    // function ctrl dep flag is on or it's dependent on a local corrupted
+    // branch.
+    if (MDNode *N = I->getMetadata("dbg")) {
+      DILocation Loc(N);
+      std::string fileName = Loc.getFilename().str();
+      fileName = fileName.substr(fileName.find_last_of("\\/") + 1);
+      uint32_t lineNum = Loc.getLineNumber();
+      FileLine opMapEntry = std::make_pair(fileName, lineNum);
+
+      if (ctrlDep || !ctrlDepWithinCurFunc) {
+        // Do a intersection between callins & brIns.
+        // Then store the results in a list
+        if (labels.danPtrOpsMap_.count(opMapEntry) != 0) {
+          std::list<Value *> ctrlDepBrs;
+          for (auto call : corruptedCallIns_) {
+            BasicBlock * callBB = call->getParent();
+            for (auto br : corruptedBr_) {
+              BasicBlock * brBB = br->getParent();
+              if (callBB->getParent() != brBB->getParent())
+                continue;
+              ControlDependenceGraphBase &cdg = CDGs[callBB->getParent()];
+              if (cdg.influences(brBB, callBB)) {
+                ctrlDepBrs.push_back(br);
+              }
+            }
+          }
+          interCtrlDepPtr_[opMapEntry] = ctrlDepBrs;
+        } else if (labels.danFuncOpsMap_.count(opMapEntry) != 0) {
+          std::list<Value *> ctrlDepBrs;
+          for (auto call : corruptedCallIns_) {
+            BasicBlock * callBB = call->getParent();
+            for (auto br : corruptedBr_) {
+              BasicBlock * brBB = br->getParent();
+              if (callBB->getParent() != brBB->getParent())
+                continue;
+              ControlDependenceGraphBase &cdg = CDGs[callBB->getParent()];
+              if (cdg.influences(brBB, callBB)) {
+                ctrlDepBrs.push_back(br);
+              }
+            }
+          }
+          interCtrlDepFunc_[opMapEntry] = ctrlDepBrs;
+        } 
+      }
+    }
+
     if (isa<CallInst>(&*I)) {
       CallSite cs(&*I);
       Function * callee = cs.getCalledFunction();
@@ -613,7 +699,15 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
       DEBUG(errs() << "Callstack PUSH " << callee->getName() << "\n");
       callStack_.push_front(std::make_pair(callee, nullptr));
       bool addFuncRet = false;
-      addFuncRet = intraDataflowAnalysis(callee, nullptr, coparams);
+      // If any of the control dependent indicator is on, we'll pass it to the
+      // callee function.
+      bool flag = false;
+      if (ctrlDep || ctrlDepWithinCurFunc) {
+        corruptedCallIns_.push_back(&*I);
+        flag = true;
+      }
+      addFuncRet = intraDataflowAnalysis(callee, nullptr, coparams, CDGs,
+          flag, labels);
       if (addFuncRet) {
         add2CrptList(&*I);
       }
@@ -684,6 +778,9 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
             if (isa<StoreInst>(&*I)) {
               Value * v = I->getOperand(1);
               add2CrptList(v);
+            } else if (isa<BranchInst>(&*I)) {
+              corruptedBr_.push_back(&*I);
+              localCorruptedBr_.push_back(&*I);
             }
             rv = true;
           }
@@ -692,7 +789,23 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
       }
     }
   }
+  DEBUG(errs() << "Leave intraDataflowAnalysis\n");
   return rv;
+}
+
+uint32_t ConAnalysis::printInterCtrlDepResult(
+    std::map<FileLine, std::list<Value *>> resultMap) {
+  
+  for (auto res : resultMap) {
+    std::string fileName = std::get<0>(res.first);
+    uint32_t lineNum = std::get<1>(res.first);
+    errs() << "\n---- Part 2: Cross Function Ctrl Dependent ----\n";
+    printList(res.second);
+    errs() << "Dangerous Operation Location: " << "("
+      << fileName.substr(fileName.find_last_of("\\/") + 1) << ":"
+      << lineNum << ")\n";
+  }
+  return resultMap.size(); 
 }
 
 uint32_t ConAnalysis::getDominators(Module &M, FuncFileLineList &danOps,
