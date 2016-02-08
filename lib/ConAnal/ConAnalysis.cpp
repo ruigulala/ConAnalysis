@@ -620,7 +620,11 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
                 continue;
               ControlDependenceGraphBase &cdg = CDGs[callBB->getParent()];
               if (cdg.influences(brBB, callBB)) {
-                ctrlDepBrs.push_back(br);
+                bool found = (std::find(ctrlDepBrs.begin(),
+                  ctrlDepBrs.end(),
+                  br) != ctrlDepBrs.end());
+                if (!found)
+                  ctrlDepBrs.push_back(br);
               }
             }
           }
@@ -635,7 +639,11 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
                 continue;
               ControlDependenceGraphBase &cdg = CDGs[callBB->getParent()];
               if (cdg.influences(brBB, callBB)) {
-                ctrlDepBrs.push_back(br);
+                bool found = (std::find(ctrlDepBrs.begin(),
+                  ctrlDepBrs.end(),
+                  br) != ctrlDepBrs.end());
+                if (!found)
+                  ctrlDepBrs.push_back(br);
               }
             }
           }
@@ -703,7 +711,11 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
       // callee function.
       bool flag = false;
       if (ctrlDep || ctrlDepWithinCurFunc) {
-        corruptedCallIns_.push_back(&*I);
+        bool found = (std::find(corruptedCallIns_.begin(),
+              corruptedCallIns_.end(),
+              &*I) != corruptedCallIns_.end());
+        if (!found)
+          corruptedCallIns_.push_back(&*I);
         flag = true;
       }
       addFuncRet = intraDataflowAnalysis(callee, nullptr, coparams, CDGs,
@@ -779,7 +791,11 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
               Value * v = I->getOperand(1);
               add2CrptList(v);
             } else if (isa<BranchInst>(&*I)) {
-              corruptedBr_.push_back(&*I);
+              bool found = (std::find(corruptedBr_.begin(),
+                corruptedBr_.end(),
+                &*I) != corruptedBr_.end());
+              if (!found)
+                corruptedBr_.push_back(&*I);
               localCorruptedBr_.push_back(&*I);
             }
             rv = true;

@@ -293,14 +293,20 @@ bool ControlDependenceGraphBase::influences(BasicBlock *A, BasicBlock *B) const 
   assert(n && "Basic block not in control dependence graph!");
 
   std::deque<ControlDependenceNode *> worklist;
+  std::set<ControlDependenceNode *> finNodes;
   worklist.insert(worklist.end(), n->parent_begin(), n->parent_end());
 
   while (!worklist.empty()) {
     n = worklist.front();
+    finNodes.insert(worklist.front());
     worklist.pop_front();
     if (n->getBlock() == A) return true;
     std::set<ControlDependenceNode *>::iterator node;
-    worklist.insert(worklist.end(), n->parent_begin(), n->parent_end());
+    for (node = n->parent_begin(); node != n->parent_end(); node++) {
+      if (finNodes.count(*node) == 0)
+        worklist.push_back(*node);
+    }
+    //worklist.insert(worklist.end(), n->parent_begin(), n->parent_end());
   }
   return false;
 }
