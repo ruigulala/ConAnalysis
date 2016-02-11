@@ -156,6 +156,8 @@ class ConAnalysis : public ModulePass {
     std::list<std::pair<Function *, Instruction *>> callStackHead_;
     std::list<std::pair<Function *, Instruction *>> callStackBody_;
     std::map<Value *, std::list<Value *>> corruptedMap_;
+
+    virtual bool add2CorruptedIR_(Value * v);
 };
 }// namespace ConAnal
 #endif  // INCLUDE_CONANAL_CONANALYSIS_H_

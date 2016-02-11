@@ -55,6 +55,15 @@ void ConAnalysis::clearClassDataMember() {
   funcEnterExitValMap_.clear();
 }
 
+bool ConAnalysis::add2CorruptedIR_(Value * v) {
+  if (!corruptedIR_.count(v)) {
+    orderedcorruptedIR_.push_back(v);
+    corruptedIR_.insert(v);
+    return true;
+  }
+  return false;
+}
+
 const Function* ConAnalysis::findEnclosingFunc(const Value* V) {
   if (const Argument* Arg = dyn_cast<Argument>(V)) {
     return Arg->getParent();
@@ -215,13 +224,17 @@ void ConAnalysis::initializeCallStack(FuncFileLineList &csinput) {
           continue;
         Function * func = &*(((*listit)->getParent())->getParent());
         bool flagAlreadyAddedVar = false;
+        bool hasGlobal = false;
         for (uint32_t op_i = 0; op_i < (*listit)->getNumOperands(); op_i++) {
-          if (finishedVars_.count((*listit)->getOperand(op_i))) {
+          Value * v = (*listit)->getOperand(op_i);
+          if (finishedVars_.count(v)) {
             flagAlreadyAddedVar = true;
-            break;
+          }
+          if (isa<GlobalVariable>(v)) {
+            hasGlobal = true;
           }
         }
-        if (flagAlreadyAddedVar)
+        if (flagAlreadyAddedVar || !hasGlobal)
           break;
         callStackHead_.push_back(std::make_pair(&*func, *listit));
         finishedVars_.insert(*listit);
@@ -486,8 +499,7 @@ bool ConAnalysis::getCorruptedIRs(Module &M, DOL &labels, bool inLoop,
       errs() << "   # of static dangerous function statements: "
         << labels.danFuncs_.size() << "\n";
       uint32_t vulNum = printInterCtrlDepResult(interCtrlDepFunc_);
-      vulNum += getDominators(M, labels.danFuncOps_,
-          corruptedIRFuncSet);
+      vulNum += getDominators(M, labels.danFuncOps_, corruptedIRFuncSet);
       errs() << "\n   # of detected potential vulnerabilities: "
         << vulNum << "\n";
       errs() << "*********************************************************\n";
@@ -501,7 +513,6 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
                                         CorruptedArgs &corruptedparams,
                                         ControlDependenceGraphs &CDGs,
                                         bool ctrlDep, DOL &labels) {
-  DEBUG(errs() << "Enter intraDataflowAnalysis\n");
   bool rv = false;
   bool ctrlDepWithinCurFunc = false;
   std::list<Instruction *> localCorruptedBr_;
@@ -558,10 +569,6 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
   for (Function::arg_iterator args = F->arg_begin();
        args != F->arg_end(); ++args, ++op_i) {
     if (corruptedparams.count(op_i)) {
-      // Notice: Here, we relax the contraint of our data flow analysis a
-      // little bit. If the arguments of a call instruction is corrupted and
-      // we couldn't obtain its function body(external function), we'll treat
-      // the return value of the call instruction as corrupted.
       if (I == inst_end(F))
         return true;
       Value * calleeArgs = &*args;
@@ -607,7 +614,7 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
       uint32_t lineNum = Loc.getLineNumber();
       FileLine opMapEntry = std::make_pair(fileName, lineNum);
 
-      if (ctrlDep || !ctrlDepWithinCurFunc) {
+      if (ctrlDep && !ctrlDepWithinCurFunc) {
         // Do a intersection between callins & brIns.
         // Then store the results in a list
         if (labels.danPtrOpsMap_.count(opMapEntry) != 0) {
@@ -621,8 +628,7 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
               ControlDependenceGraphBase &cdg = CDGs[callBB->getParent()];
               if (cdg.influences(brBB, callBB)) {
                 bool found = (std::find(ctrlDepBrs.begin(),
-                  ctrlDepBrs.end(),
-                  br) != ctrlDepBrs.end());
+                  ctrlDepBrs.end(), br) != ctrlDepBrs.end());
                 if (!found)
                   ctrlDepBrs.push_back(br);
               }
@@ -640,8 +646,7 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
               ControlDependenceGraphBase &cdg = CDGs[callBB->getParent()];
               if (cdg.influences(brBB, callBB)) {
                 bool found = (std::find(ctrlDepBrs.begin(),
-                  ctrlDepBrs.end(),
-                  br) != ctrlDepBrs.end());
+                  ctrlDepBrs.end(), br) != ctrlDepBrs.end());
                 if (!found)
                   ctrlDepBrs.push_back(br);
               }
@@ -675,17 +680,27 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
       }
       if (cycle_flag) continue;
       CorruptedArgs coparams;
+      bool paramsCorrupted = false;
       // Iterate through all the parameters to find the corrupted ones
       for (uint32_t op_i = 0, op_num = I->getNumOperands(); op_i < op_num;
            op_i++) {
         Value * v = I->getOperand(op_i);
         if (isa<Instruction>(v)) {
           if (corruptedIR_.count(v) || corruptedPtr_.count(v)) {
+            paramsCorrupted = true;
             DEBUG(errs() << "Param No." << op_i << " %"
             << ins2int_[dyn_cast<Instruction>(v)] << " contains corruption.\n");
             coparams[op_i] = &*v;
           }
         }
+      }
+      // Notice: Here, we relax the contraint of our data flow analysis a
+      // little bit. If the arguments of a call instruction is corrupted and
+      // we couldn't obtain its function body(external function), we'll treat
+      // the return value of the call instruction as corrupted.
+      if (callee->begin() == callee->end() && paramsCorrupted) {
+        add2CorruptedIR_(&*I);
+        continue;
       }
       if (funcEnterExitValMap_.count(callee) != 0) {
         EnterExitVal funcVal = funcEnterExitValMap_[callee];
@@ -697,7 +712,6 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
             DEBUG(errs() << "Skip function " << fnname << "\n");
             continue;
           }
-
         }
       } else {
         funcEnterExitValMap_[callee].enterVal = corruptedIR_.size();
@@ -805,7 +819,6 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
       }
     }
   }
-  DEBUG(errs() << "Leave intraDataflowAnalysis\n");
   return rv;
 }
 
