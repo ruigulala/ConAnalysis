@@ -1,7 +1,7 @@
 configure_file(autotest.sh autotest.sh COPYONLY)
 configure_file(danMemFuncLists.txt danMemFuncLists.txt COPYONLY)
 configure_file(danPrivilegedFuncLists.txt danPrivilegedFuncLists.txt COPYONLY)
-#configure_file(apache-21287.bc apache-21287.bc COPYONLY)
+configure_file(linux-4.4.1.bc linux-4.4.1.bc COPYONLY)
 
 set(SOURCE_NAME linux-4.4.1)
 set(src_bc_compiler clang)

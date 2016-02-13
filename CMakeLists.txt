@@ -21,6 +21,7 @@ add_subdirectory(TESTS/mysql-35589) # concurrency bug
 add_subdirectory(TESTS/memcached-1.4.25) # concurrency bug
 add_subdirectory(TESTS/ssdb-1.9.2) # concurrency bug
 add_subdirectory(TESTS/mongoose-3.6) # concurrency bug
+add_subdirectory(TESTS/linux-4.4.1) # concurrency bug
 #add_subdirectory(TESTS/freebsd-cve-3527a)
 #add_subdirectory(TESTS/freebsd-osvdb-58543)
 #add_subdirectory(TESTS/kernel-cve-2004-1235) # real exploit exists
