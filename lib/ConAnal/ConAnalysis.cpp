@@ -234,7 +234,7 @@ void ConAnalysis::initializeCallStack(FuncFileLineList &csinput) {
             hasGlobal = true;
           }
         }
-        if (flagAlreadyAddedVar || !hasGlobal)
+        if (flagAlreadyAddedVar || (!hasGlobal && isa<LoadInst>(*listit)))
           break;
         callStackHead_.push_back(std::make_pair(&*func, *listit));
         finishedVars_.insert(*listit);
@@ -396,6 +396,7 @@ bool ConAnalysis::printMap(Module &M) {
 bool ConAnalysis::getCorruptedIRs(Module &M, DOL &labels, bool inLoop,
     ControlDependenceGraphs &CDGs) {
   DEBUG(errs() << "---- Getting Corrupted LLVM IRs ----\n");
+  assert(callStackHead_.size() != 0 && "Error: callStackHead_ is empty!");
   for (auto cs_itr : callStackHead_) {
     // Each time, we create a call stack using one element from callStackHead
     // and the whole callStackBody

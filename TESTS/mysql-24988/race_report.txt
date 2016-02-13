@@ -1,4 +1,4 @@
-check_access (sql_parse.cc:5261)
+check_access (sql_parse.cc:5262)
 check_table_access (sql_parse.cc:5386)
 mysql_execute_command (sql_parse.cc:2542)
 mysql_parse (sql_parse.cc:5870)
