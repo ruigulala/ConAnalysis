@@ -15,6 +15,7 @@ add_subdirectory(TESTS/libsafe-cve-1125) # real exploit exists
 add_subdirectory(TESTS/libvirt-cve-1447) # real exploit exists
 add_subdirectory(TESTS/apache-21287) # concurrency bug
 add_subdirectory(TESTS/apache-25520) # real exploit exists
+add_subdirectory(TESTS/apache-46215) # concurrency bug
 add_subdirectory(TESTS/apache-2.4.18) # concurrency bug
 add_subdirectory(TESTS/mysql-24988) # concurrency bug
 add_subdirectory(TESTS/mysql-35589) # concurrency bug
