@@ -225,22 +225,35 @@ void ConAnalysis::initializeCallStack(FuncFileLineList &csinput) {
         Function * func = &*(((*listit)->getParent())->getParent());
         bool flagAlreadyAddedVar = false;
         bool hasGlobal = false;
+        bool isPointer = false;
+        bool isBitCast = false;
         for (uint32_t op_i = 0; op_i < (*listit)->getNumOperands(); op_i++) {
           Value * v = (*listit)->getOperand(op_i);
           if (finishedVars_.count(v)) {
             flagAlreadyAddedVar = true;
+            finishedVars_.insert(*listit);
           }
           if (isa<GlobalVariable>(v)) {
             hasGlobal = true;
           }
+          if (isa<GetElementPtrInst>(v)) {
+            isPointer = true;
+          }
+          if (isa<BitCastInst>(v)) {
+            isBitCast = true;
+          } 
         }
-        if (flagAlreadyAddedVar || (!hasGlobal && isa<LoadInst>(*listit)))
-          break;
+        if (*listit != insList.back() || !callStackHead_.empty()) {
+          if (flagAlreadyAddedVar || 
+              (!hasGlobal && isa<LoadInst>(*listit)) || 
+              (!isBitCast && !isPointer && !isa<LoadInst>(*listit)))
+            continue;
+        }
         callStackHead_.push_back(std::make_pair(&*func, *listit));
         finishedVars_.insert(*listit);
-        //errs() << "-------------------------\n";
-        //(*listit)->print(errs());errs() << "\n";
-        //errs() << "-------------------------\n";
+        errs() << "-------------------------\n";
+        (*listit)->print(errs());errs() << "\n";
+        errs() << "-------------------------\n";
       }
     }
     DEBUG(errs() << "\n");
@@ -461,7 +474,8 @@ bool ConAnalysis::getCorruptedIRs(Module &M, DOL &labels, bool inLoop,
         for (succ_iterator SI = succ_begin(BB), E = succ_end(BB); SI != E;
             ++SI) {
           LoopInfo &LI = getAnalysis<LoopInfo>(*F);
-          if ((LI.getLoopFor(I->getParent()))->isLoopExiting(*SI)) {
+          Loop * loop = LI.getLoopFor(I->getParent());
+          if (loop && loop->isLoopExiting(*SI)) {
               errs() << "**************************************************\n";
               errs() << "                Busy Loop Detected!               \n";
               errs() << "%" << ins2int_[I] <<
@@ -559,6 +573,9 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
   }
 
   // Obtain the Control Dependence Graph of the current function
+  bool noGraph = false;
+  if (CDGs.graphs.find(F) == CDGs.graphs.end())
+    noGraph = true;
   ControlDependenceGraphBase &cdgBase = CDGs[F];
 
   if (I == inst_end(F)) {
@@ -593,6 +610,8 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
     // intra-procedural branch instruction
     bool influence = false;
     for (auto brIns : localCorruptedBr_) {
+      if (noGraph)
+        break;
       BasicBlock * brBB = brIns->getParent();
       BasicBlock * insBB = I->getParent();
       if (cdgBase.influences(brBB, insBB)) {
@@ -626,12 +645,14 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
               BasicBlock * brBB = br->getParent();
               if (callBB->getParent() != brBB->getParent())
                 continue;
-              ControlDependenceGraphBase &cdg = CDGs[callBB->getParent()];
-              if (cdg.influences(brBB, callBB)) {
-                bool found = (std::find(ctrlDepBrs.begin(),
-                  ctrlDepBrs.end(), br) != ctrlDepBrs.end());
-                if (!found)
-                  ctrlDepBrs.push_back(br);
+              if (CDGs.graphs.find(callBB->getParent()) != CDGs.graphs.end()) {
+                ControlDependenceGraphBase &cdg = CDGs[callBB->getParent()];
+                if (cdg.influences(brBB, callBB)) {
+                  bool found = (std::find(ctrlDepBrs.begin(),
+                    ctrlDepBrs.end(), br) != ctrlDepBrs.end());
+                  if (!found)
+                    ctrlDepBrs.push_back(br);
+                }
               }
             }
           }
@@ -644,12 +665,14 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
               BasicBlock * brBB = br->getParent();
               if (callBB->getParent() != brBB->getParent())
                 continue;
+              if (CDGs.graphs.find(callBB->getParent()) != CDGs.graphs.end()) {
               ControlDependenceGraphBase &cdg = CDGs[callBB->getParent()];
-              if (cdg.influences(brBB, callBB)) {
-                bool found = (std::find(ctrlDepBrs.begin(),
-                  ctrlDepBrs.end(), br) != ctrlDepBrs.end());
-                if (!found)
-                  ctrlDepBrs.push_back(br);
+                if (cdg.influences(brBB, callBB)) {
+                  bool found = (std::find(ctrlDepBrs.begin(),
+                    ctrlDepBrs.end(), br) != ctrlDepBrs.end());
+                  if (!found)
+                    ctrlDepBrs.push_back(br);
+                }
               }
             }
           }

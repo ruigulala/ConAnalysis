@@ -276,7 +276,7 @@ public:
   virtual bool runOnModule(Module &M) {
     for (Module::iterator F = M.begin(), E = M.end(); F != E; ++F) {
       if (F->isDeclaration())
-	continue;
+	      continue;
       ControlDependenceGraphBase &cdg = graphs[F];
       PostDominatorTree &pdt = getAnalysis<PostDominatorTree>(*F);
       cdg.graphForFunction(*F,pdt);
@@ -295,7 +295,7 @@ public:
   ControlDependenceGraphBase &graphFor(const Function *F) {
     return graphs[F];
   }
-private:
+  /*private:*/
   std::map<const Function *, ControlDependenceGraphBase> graphs;
 };
 
