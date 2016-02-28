@@ -143,8 +143,9 @@ void ConAnalysis::parseInput(std::string inputfile, FuncFileLineList &csinput) {
   }
   std::string line;
   while (std::getline(ifs, line)) {
-    char fileName[300];
-    char funcName[300];
+    // The maximum file length in linux is 255
+    char fileName[256];
+    char funcName[256];
     uint32_t lineNum;
     int rv = 0;
     // Input format: funcName (fileName:lineNum)
@@ -157,16 +158,23 @@ void ConAnalysis::parseInput(std::string inputfile, FuncFileLineList &csinput) {
 }
 
 void ConAnalysis::initializeCallStack(FuncFileLineList &csinput) {
-  errs() << "---- Replaying call stack input ----\n";
+  errs() << "---- Replaying Call Stack Input ----\n";
   for (auto cs_it = csinput.begin(); cs_it != csinput.end(); ++cs_it) {
     std::string filename = std::get<1>(*cs_it);
     uint32_t line = std::get<2>(*cs_it);
     errs() << "(" << filename << " : " << line << ")\n";
     auto mapitr = sourcetoIRmap_.find(std::make_pair(filename, line));
     if (mapitr == sourcetoIRmap_.end()) {
+      // It's tolerable if some instructions in certain functions are missing
+      // due to some library linking issue. However, it doesn't make any 
+      // sense if the corrupted variable instruction is missing.
       errs() << "ERROR: <" << std::get<1>(*cs_it) << " "
              << std::get<2>(*cs_it) << ">"
              << " sourcetoIRmap_ look up failed.\n";
+      if (cs_it == csinput.begin()) {
+        errs() << "Fisrt instruction failed, aborting...\n";
+        abort();
+      }
       continue;
     }
     std::list<Instruction *>& insList = mapitr->second;
@@ -197,16 +205,15 @@ void ConAnalysis::initializeCallStack(FuncFileLineList &csinput) {
         DEBUG(errs() << func->getName() << " contains the above ins\n");
         callStackHead_.push_back(std::make_pair(&*func, *listit));
         finishedVars_.insert(*listit);
-        //errs() << "-------------------------\n";
-        //(*listit)->print(errs());errs() << "\n"; 
-        //errs() << "-------------------------\n";
+        errs() << "-------------------------\n";
+        (*listit)->print(errs());errs() << "\n"; 
+        errs() << "-------------------------\n";
       } else if (isa<CallInst>(*listit) || isa<InvokeInst>(*listit)) {
         CallSite cs(*listit);
         Function * callee = cs.getCalledFunction();
         if (callee != NULL) {
-          // Skip llvm.dbg function
-          std::string fnname = callee->getName().str();
-          if (fnname.compare(0, 5, "llvm.") == 0)
+          // Skip llvm intrinsic function
+          if (callee->isIntrinsic())
             continue;
         }
         if (cs_it == csinput.begin() && listit == insList.begin()) {
@@ -313,7 +320,9 @@ bool ConAnalysis::runOnModule(Module &M) {
   errs() << "       Start ConAnalysis Pass          \n";
   errs() << "---------------------------------------\n";
   createMaps(M);
+#ifdef DEBUG_TYPE 
   printMap(M);
+#endif
   parseInput(RaceReportInput, raceReport);
   initializeCallStack(raceReport);
   inLoop = checkLoop(M);
@@ -324,6 +333,7 @@ bool ConAnalysis::runOnModule(Module &M) {
 }
 
 bool ConAnalysis::createMaps(Module &M) {
+  bool rv = true;
   for (auto funciter = M.getFunctionList().begin();
       funciter != M.getFunctionList().end(); funciter++) {
     Function *F = funciter;
@@ -336,6 +346,7 @@ bool ConAnalysis::createMaps(Module &M) {
         file = file.substr(file.find_last_of("\\/") + 1);
         sourcetoIRmap_[std::make_pair(file, line)].push_back(&*I);
       } else {
+        rv = false; 
         // There might be a lot of generated LLVM IRs couldn't map to any
         // line of the source code.
         //errs() << "Warning: Couldn't dbg Metadata for LLVM IR\n";
@@ -346,7 +357,7 @@ bool ConAnalysis::createMaps(Module &M) {
       }
     }
   }
-  return false;
+  return rv;
 }
 
 bool ConAnalysis::printMappedInstruction(Value * v) {
@@ -418,6 +429,8 @@ bool ConAnalysis::getCorruptedIRs(Module &M, DOL &labels, bool inLoop,
     callStack_.push_front(cs_itr);
     orderedcorruptedIR_.clear();
     corruptedIR_.clear();
+    corruptedPtr_.clear();
+    funcEnterExitValMap_.clear();
 
     while (!callStack_.empty()) {
       auto& loc = callStack_.front();
@@ -689,10 +702,10 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
         DEBUG(I->print(errs()); errs() << "\n");
         continue;
       }
-      // Skip all the llvm debug function
-      std::string fnname = callee->getName().str();
-      if (fnname.compare(0, 5, "llvm.") == 0)
+      // Skip all the llvm intrinsic function
+      if (callee->isIntrinsic())
         continue;
+      std::string fnname = callee->getName().str();
       // Check for cycles
       bool cycle_flag = false;
       for (auto& csit : callStack_) {

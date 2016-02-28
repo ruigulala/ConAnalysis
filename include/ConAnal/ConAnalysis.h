@@ -53,68 +53,11 @@ using namespace llvm;
 
 namespace ConAnal {
 class ConAnalysis : public ModulePass {
+
  public:
     static char ID; // Pass identification, replacement for typeid
     ConAnalysis() : ModulePass(ID) {
     }
-
-    /// Avoid funky problems of uninitialized data member
-    void clearClassDataMember();
-    ///
-    const Function* findEnclosingFunc(const Value* V);
-    ///
-    const MDNode* findVar(const Value* V, const Function* F);
-    ///
-    StringRef getOriginalName(const Value* V);
-    ///
-    bool add2CrptList(Value * corruptedVal);
-    /// Print the global index of the instructions and IR form
-    void printList(std::list<Value *> &inputset);
-    ///
-    void printSet(std::set<BasicBlock *> &inputset);
-    /// This method reads the initial value of callstack from
-    /// the associated file that belongs to each part of the analysis.
-    void parseInput(std::string inputfile, FuncFileLineList &csinput);
-    /// This method intialize the call stack for our analysis
-    void initializeCallStack(FuncFileLineList &csInput);
-    ///
-    virtual bool runOnModule(Module &M);
-    /// This method create two maps.
-    /// The first map is:
-    /// Instruction -> Number
-    /// The second map is:
-    /// <FileName, lineNum> -> Instruction
-    virtual bool createMaps(Module &M);
-    virtual bool iterateLoops(std::set<BasicBlock *> &firstInsBBSet, Loop * L,
-        unsigned nesting);
-    virtual bool checkLoop(Module &M);
-    ///
-    bool printMappedInstruction(Value * v);
-    ///
-    virtual bool printMap(Module &M);
-    ///
-    virtual bool getCorruptedIRs(Module &M, DOL &labels, bool inLoop,
-        ControlDependenceGraphs &CDGs);
-    ///
-    virtual bool intraDataflowAnalysis(Function *, Instruction *,
-                                       CorruptedArgs &corruptedparams,
-                                       ControlDependenceGraphs &CDGs,
-                                       bool ctrlDep, DOL &labels);
-    virtual uint32_t printInterCtrlDepResult(
-        std::map<FileLine, std::list<Value *>> resultMap);
-    ///
-    virtual uint32_t getDominators(Module &M, FuncFileLineList &csinput,
-        std::set<Function *> &corruptedIRFuncSet);
-    /// Returns the intersection between two lists
-    virtual bool getFeasiblePath(Module &M,
-                                 std::list<Value *> &dominantfrontiers);
-    ///
-    void computeDominators(Function &F, std::map<BasicBlock *,
-                           std::set<BasicBlock *>> & dominators);
-    ///
-    void printDominators(Function &F, std::map<BasicBlock *,
-                         std::set<BasicBlock *>> & dominators);
-
 
     //**********************************************************************
     // print (do not change this method)
@@ -158,6 +101,64 @@ class ConAnalysis : public ModulePass {
     std::map<Value *, std::list<Value *>> corruptedMap_;
 
     virtual bool add2CorruptedIR_(Value * v);
+    /// Avoid funky problems of uninitialized data member
+    void clearClassDataMember();
+    ///
+    const Function* findEnclosingFunc(const Value* V);
+    ///
+    const MDNode* findVar(const Value* V, const Function* F);
+    ///
+    StringRef getOriginalName(const Value* V);
+    ///
+    bool add2CrptList(Value * corruptedVal);
+    /// Print the global index of the instructions and IR form
+    void printList(std::list<Value *> &inputset);
+    ///
+    void printSet(std::set<BasicBlock *> &inputset);
+    /// This method reads the initial value of callstack from
+    /// the associated files.
+    void parseInput(std::string inputfile, FuncFileLineList &csinput);
+    /// This method intialize the call stack with the first corrupted 
+    /// variable instruction and its callers.
+    void initializeCallStack(FuncFileLineList &csInput);
+    ///
+    virtual bool runOnModule(Module &M);
+    /// This method create two maps for future quick search.
+    /// The first map is:
+    /// Instruction -> Number
+    /// The second map is:
+    /// <FileName, lineNum> -> Instruction
+    virtual bool createMaps(Module &M);
+    virtual bool iterateLoops(std::set<BasicBlock *> &firstInsBBSet, Loop * L,
+        unsigned nesting);
+    virtual bool checkLoop(Module &M);
+    /// 
+    bool printMappedInstruction(Value * v);
+    /// This method prints all the instructions with their outter BasicBlock
+    /// and Function information.
+    virtual bool printMap(Module &M);
+    ///
+    virtual bool getCorruptedIRs(Module &M, DOL &labels, bool inLoop,
+        ControlDependenceGraphs &CDGs);
+    ///
+    virtual bool intraDataflowAnalysis(Function *, Instruction *,
+                                       CorruptedArgs &corruptedparams,
+                                       ControlDependenceGraphs &CDGs,
+                                       bool ctrlDep, DOL &labels);
+    virtual uint32_t printInterCtrlDepResult(
+        std::map<FileLine, std::list<Value *>> resultMap);
+    ///
+    virtual uint32_t getDominators(Module &M, FuncFileLineList &csinput,
+        std::set<Function *> &corruptedIRFuncSet);
+    /// Returns the intersection between two lists
+    virtual bool getFeasiblePath(Module &M,
+                                 std::list<Value *> &dominantfrontiers);
+    ///
+    void computeDominators(Function &F, std::map<BasicBlock *,
+                           std::set<BasicBlock *>> & dominators);
+    ///
+    void printDominators(Function &F, std::map<BasicBlock *,
+                         std::set<BasicBlock *>> & dominators);
 };
 }// namespace ConAnal
 #endif  // INCLUDE_CONANAL_CONANALYSIS_H_
