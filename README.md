@@ -25,8 +25,10 @@ tar -xvf cfe-3.6.1.src.tar.xz -C llvm-3.6.1.src/tools/
 tar -xvf compiler-rt-3.6.1.src.tar.xz -C llvm-3.6.1.src/projects/
 ```
 
-* Rename the clang source code folder to clang
-The clang source code folder is cfe-3.6.1.src under llvm-3.6.1.src/tools/
+* Rename the source code folder to clang and compiler-rt
+clang source code folder is cfe-3.6.1.src under llvm-3.6.1.src/tools/
+compiler-rt source code folder is under llvm-3.6.1.src/projects
+
 ```
 mv cfe-3.6.1.src clang
 mv compiler-rt-3.6.1.src compiler-rt
