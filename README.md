@@ -2,7 +2,7 @@
 Concurrency Attack Analysis.
 Right now, all the developement is under Ubuntu 14.04 LTS. Make sure you have allocated at least 3GB memory. Otherwise the linking process may fail.
 
-## Install LLVM 3.6.1 & clang 3.6.1.
+## Install LLVM 3.6.1 & clang 3.6.1 & LLDB 3.6.1.
 
 * Download the source code of LLVM 3.6.1 from the following website.
 ```
@@ -13,7 +13,7 @@ http://llvm.org/releases/download.html
 tar -xvf llvm-3.6.1.src.tar.xz
 ```
 
-* Download the source code of clang 3.6.1 & Compiler RT from the following website.
+* Download the source code of clang 3.6.1 & Compiler RT & LLDB 3.6.1 from the following website.
 ```
 http://llvm.org/releases/download.html
 ```
@@ -22,6 +22,7 @@ http://llvm.org/releases/download.html
 The path is path-to-llvm-source/tools/
 ```
 tar -xvf cfe-3.6.1.src.tar.xz -C llvm-3.6.1.src/tools/
+tar -xvf lldb-3.6.1.src.tar.xz -C llvm-3.6.1.src/tools/
 tar -xvf compiler-rt-3.6.1.src.tar.xz -C llvm-3.6.1.src/projects/
 ```
 
@@ -32,6 +33,7 @@ compiler-rt source code folder is under llvm-3.6.1.src/projects
 ```
 mv cfe-3.6.1.src clang
 mv compiler-rt-3.6.1.src compiler-rt
+mv lldb-3.6.1.src lldb
 ```
 
 * Compile LLVM
