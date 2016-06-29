@@ -54,7 +54,7 @@ Build LLVM together with Clang using CMake
 ```
 mkdir build
 cd build
-cmake ..
+cmake -DCMAKE_BUILD_TYPE=Release ..
 make
 ```
 After this step, under path-to-llvm-source/build/bin, you'll see all the executables including clang and clang++ etc.
