@@ -6,54 +6,82 @@ import argparse
 import sys
 
 CBREAKPOINT_SET = set()
+THREAD_ARR = []
 
 def ifCBreakpointsReached():
-    for br in CBREAKPOINT_SET:
-        if br.GetHitCount() == 0:
-            return False
-    return True
+	for br in CBREAKPOINT_SET:
+		if br.GetHitCount() == 0:
+			return False
+	return True
+
 
 def SetConcurrentBreakpoint(debugger, command, result, internal_dict):
-    
-    # A hack in order to let ArgumentParser work
-    sys.argv = ("cbr " + command).split()
-    
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-f', type=str, dest="file_name", action="store",
-            help="File name for the cbreakpoint")
-    parser.add_argument('-l', type=int, dest="line_num", action="store",
-        help="Line number of the cbreakpoint")
-    args = parser.parse_args()
-    
-    target = debugger.GetSelectedTarget()
-    # Use API to set the breakpoint
-    breakpoint = target.BreakpointCreateByLocation(args.file_name, args.line_num)
-    CBREAKPOINT_SET.add(breakpoint)
-    debugger.HandleCommand('breakpoint command add -F cbreak.breakpoint_callback')
+	args = command.strip().split(":")
+	filename = args[0]
+	linenum = int(args[1])
+
+	print "Breakpoint set at %s:%d" % (filename, linenum)
+
+	target = debugger.GetSelectedTarget()
+	breakpoint = target.BreakpointCreateByLocation(filename, linenum)
+	CBREAKPOINT_SET.add(breakpoint)
+
+	debugger.HandleCommand('breakpoint command add -F conbreak.breakpoint_callback')
+
 
 def breakpoint_callback(frame, bp_loc, dict):
+	thread = frame.GetThread()
+	process = thread.GetProcess()
+	ID = thread.GetThreadID()
+	print "A sub-breakpoint is triggered by thread %d." % (ID)
 
-    thread = frame.GetThread()
-    process = thread.GetProcess()
-    ID = thread.GetThreadID()
-    print "A sub-breakpoint is triggered by thread %d." % (ID)
+	global THREAD_ARR
+	obj = [str(frame.FindVariable("obj")).split()[-1]]
+	obj.append(ID)
 
-    for t in process:
-        if t.GetStopReason() == lldb.eStopReasonBreakpoint:
-            t.Suspend()
+	print ">>>>>>>>>>>> obj = " + str(obj)
+	print ">>>>>>>>>>>> arr = " + str(THREAD_ARR)
 
-    if not ifCBreakpointsReached():
-        process.Continue()
-    else:
-        for t in process:
-            t.Resume()
-        process.Stop()
+	# Is there a better way to check if addr matches and tid does not?
+	intersection = [i for i in THREAD_ARR if i[0] == obj[0] and i[1] != obj[1]]
+	if len(intersection) > 0:
+		print ">>>>>>>>>>>> FOUND!"
+		print intersection[0]
+		print obj
+		print "********************************* HALT *********************************"
+
+		# Stop everything, return control to user
+		for t in process:
+			t.Suspend()
+		process.Stop()
+
+	else:
+		print ">>>>>>>>>>>> Nope. Continuing..."
+		THREAD_ARR.append(obj)
+
+		# Stop threads at a breakpoint, let all other threads go
+		full = True
+		for t in process:
+			if all(t.GetThreadID() != tup[1] for tup in THREAD_ARR):
+				t.Resume()
+				full = False
+			else:
+				t.Suspend()
+
+		# If all threads already stopped and no match, release all threads and try again
+		if full:
+			del THREAD_ARR[:]
+			for t in process:
+				t.Resume()
+
+		process.Continue()
+
 
 def __lldb_init_module(debugger, dict):
-    # This initializer is being run from LLDB in the embedded command interpreter
-    # Add any commands contained in this module to LLDB
-    debugger.HandleCommand('command script add -f conbreak.SetConcurrentBreakpoint cbr')
-    print "The \"cbr\" python command has been installed and is ready for use."
+	# This initializer is being run from LLDB in the embedded command interpreter
+	# Add any commands contained in this module to LLDB
+	debugger.HandleCommand('command script add -f conbreak.SetConcurrentBreakpoint cbr')
+	print "The \"cbr\" python command has been installed and is ready for use."
 
 
 
