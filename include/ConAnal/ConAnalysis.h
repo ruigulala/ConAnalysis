@@ -80,7 +80,7 @@ class ConAnalysis : public ModulePass {
     }
 
  private:
-    std::map<Instruction *, int> ins2int_;
+    std::map<Instruction *, uint64_t> ins2int_;
     uint64_t ins_count_ = 1;
     bool controlDependent = false;
     /// <fileName, lineNum> -> list<Instruction *>
