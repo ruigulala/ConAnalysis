@@ -1,0 +1,104 @@
+#!/usr/bin/python2.7
+
+import lldb
+import commands
+import argparse
+import sys
+
+COUNT = 0
+OBJ_ARR = []
+
+def set_trigger():
+	print "Setting breakpoints in mod_mem_cache.c at lines 354 and 653..."
+	target = lldb.debugger.GetSelectedTarget()
+	bp_read = target.BreakpointCreateByLocation("mod_mem_cache.c", 354)
+	bp_write = target.BreakpointCreateByLocation("mod_mem_cache.c", 653)
+	bp_free = target.BreakpointCreateByName("cleanup_cache_object")
+
+	bp_read.SetScriptCallbackFunction("trigger.read_callback")
+	bp_write.SetScriptCallbackFunction("trigger.write_callback")
+	bp_free.SetScriptCallbackFunction("trigger.free_callback")
+	print("Configuration done!")
+
+
+def read_callback(frame, bp_loc, dict):
+	thread = frame.GetThread()
+	process = thread.GetProcess()
+	ID = thread.GetThreadID()
+
+	obj = str(frame.FindVariable("obj")).split()[-1]
+	
+	print "READ: Checking obj->cleanup at " + obj
+	
+	thread.Resume()
+	process.Continue()
+
+
+def write_callback(frame, bp_loc, dict):
+	thread = frame.GetThread()
+	process = thread.GetProcess()
+	ID = thread.GetThreadID()
+
+	global COUNT
+	global OBJ_ARR
+
+	COUNT += 1
+	if len(OBJ_ARR) < 5:
+		obj = str(frame.FindVariable("obj")).split()[-1]
+		OBJ_ARR.append(obj)
+
+		print ">>>>>>>>>> WRITE: Blocking at " + obj
+		thread.Suspend()
+
+	else:
+		thread.Resume()
+	
+
+	if COUNT > 100:
+		print ">>>>>>>>>> TIMEOUT: Suspending all threads..."
+		print "**************************** HALT ****************************"
+
+		for t in process:
+			t.Suspend()
+		process.Stop()
+	else:
+		process.Continue()
+
+
+def free_callback(frame, bp_loc, dict):
+	thread = frame.GetThread()
+	process = thread.GetProcess()
+	ID = thread.GetThreadID()
+
+	global OBJ_ARR
+	print "FREE: OBJ_ARR = " + str(OBJ_ARR)
+
+	obj = str(frame.FindVariable("obj")).split()[-1]
+	print "FREE: &obj = " + obj
+
+	if obj in OBJ_ARR:
+		print ">>>>>>>>>> FREE:  Freeing obj at " + obj + "..."
+		print "**************************** HALT ****************************"
+		
+		for t in process:
+			t.Suspend()
+		process.Stop()
+
+	else:
+		thread.Resume()
+		process.Continue()
+
+
+def __lldb_init_module(debugger, dict):
+    #debugger.HandleCommand('command script add -f trigger.set_trigger trig')
+    #print "The \"trig\" python command has been installed and is ready for use."
+	print "Setting trigger..."
+	set_trigger()
+	print "Starting server..."
+	debugger.HandleCommand('run -k start -X')
+
+
+
+
+
+
