@@ -4,147 +4,164 @@ import lldb
 import commands
 import argparse
 import sys
+import random
+import time
+import threading
 
-COUNT = 0
+# USER SET GLOBAL VARIABLES
+# Stable state wait time (in seconds, ie. 0.1 = 100ms), default = 1
+WAIT_TIME = 1
+
+# DO NOT CHANGE
+LAST_BREAK = 0
+RUNNING = True
 OBJ_ARR = []
-THREAD_STATS = []
+THREAD_ARR = []
 
 def set_trigger():
-	print "Setting breakpoints in mod_mem_cache.c at lines 354 and 653..."
+	print "Setting breakpoints..."
 	target = lldb.debugger.GetSelectedTarget()
 	bp_read = target.BreakpointCreateByLocation("mod_mem_cache.c", 354)
 	bp_write = target.BreakpointCreateByLocation("mod_mem_cache.c", 653)
-	bp_free = target.BreakpointCreateByName("cleanup_cache_object")
 
 	bp_read.SetScriptCallbackFunction("trigger1.read_callback")
 	bp_write.SetScriptCallbackFunction("trigger1.write_callback")
-	bp_free.SetScriptCallbackFunction("trigger1.free_callback")
-	#debugger.HandleCommand('breakpoint command add -F trigger.trigger_callback')
 	print("Configuration done!")
 
 
-def update_run(process, stop):
-	if stop:
-		for t in process:
-			t.Suspend()
-		process.Stop()
-	else:
-		for t in process:
-			found = False
-			for stat in THREAD_STATS:
-				if t.GetThreadID() == stat[0]:
-					found = True
-					if stat[1] == 0:
-						t.Suspend()
-					else:
-						t.Resume()
+# Release a thread if stable state is reached
+def timer():
+	threading.Timer(0.1, timer).start()
 
-			if not found:
-				t.Resume()
-		
-		process.Continue()
+	if RUNNING and time.time() - LAST_BREAK > WAIT_TIME:
+		release_bp()
+
+
+def update_timer():
+	global LAST_BREAK
+	LAST_BREAK = time.time()
+
+
+# Check to see if every thread is at a breakpoint
+def all_bp_hit():
+	for t in lldb.debugger.GetSelectedTarget().GetProcess():
+		if not t.IsSuspended():
+			return False
+
+	return True
+
+
+def release_bp():
+	process = lldb.debugger.GetSelectedTarget().GetProcess()
+	
+	# Check if process is invalid, can cause errors
+	if process.IsValid() == False:
+		# print "######## WARNING: PROCESS IS INVALID ########"
+		return
+
+	obj_arr_len = len(OBJ_ARR)
+
+	# No more suspended threads...
+	if obj_arr_len == 0:
+		return
+
+	global OBJ_ARR
+	global THREAD_ARR
+
+	rand = random.randrange(0, obj_arr_len)
+	thread = process.GetThreadByID(THREAD_ARR[rand])
+
+	print str(time.time()) + " >>>>>>>>>> TIMEOUT: Releasing thread " + str(thread.GetThreadID())
+
+	del OBJ_ARR[rand]
+	del THREAD_ARR[rand]
+
+	thread.Resume()
+	process.Continue()
 
 
 def read_callback(frame, bp_loc, dict):
 	thread = frame.GetThread()
 	process = thread.GetProcess()
 	ID = thread.GetThreadID()
-	#print "READ:  A sub-breakpoint has been triggered by thread %d" % (ID)
 
 	obj = frame.FindVariable("obj")
 	cleanup = obj.GetChildMemberWithName("cleanup")
 	
-	print "READ:  Checking obj->cleanup at " + str(obj).split()[-1] + "..."
-	print "READ:  obj->cleanup = " + str(cleanup).split()[-1]
-	
-	if len([1 for x in THREAD_STATS if x[0] == ID]) == 0:
-		THREAD_STATS.append([ID, 1])
-	else:
-		for tup in THREAD_STATS:
-			if tup[0] == ID:
-				tup[1] = 1
+	# Print is specific to bug #1
+	#print "READ: [" + str(ID) + "] Checking obj->cleanup at " + str(obj).split()[-1] + "..."
+	#print "READ: [" + str(ID) + "] obj->cleanup = " + str(cleanup).split()[-1]
 
-	update_run(process, 0)
+	global OBJ_ARR
+	global THREAD_ARR
+	global RUNNING
+
+	thread.Suspend()
+
+	# TODO: Need better way to find TSAN reported variable addresses
+	obj = str(frame.FindVariable("obj")).split()[-1]
+	print str(time.time()) + " READ:  [" + str(ID) + "] Checking " + obj + "..."
+
+	if obj in OBJ_ARR:
+		print ">>>>>>>>>> READ:  [" + str(ID) + "] Found match!"
+		print "addr=" + obj + "  tid1=" + str(THREAD_ARR[OBJ_ARR.index(obj)]) + "  tid2=" + str(ID)
+		print "**************************** HALT ****************************"
+		RUNNING = False
+		process.Stop()
+
+	else:
+		update_timer()
+
+		OBJ_ARR.append(obj)
+		THREAD_ARR.append(ID)
+
+		# Randomly select a thread to be released if all threads are suspended
+		if all_bp_hit():
+			release_bp()
+		else:
+			process.Continue()
 
 
 def write_callback(frame, bp_loc, dict):
 	thread = frame.GetThread()
 	process = thread.GetProcess()
 	ID = thread.GetThreadID()
-	#print "WRITE: A sub-breakpoint has been triggered by thread %d" % (ID)
-
-	global COUNT
-	global OBJ_ARR
-
-	COUNT += 1
-	if len(OBJ_ARR) < 5:
-		obj = str(frame.FindVariable("obj")).split()[-1]
-		OBJ_ARR.append(obj)
-
-		print ">>>>>>>>>> WRITE: Blocking at " + obj + "..."
-		if len([1 for x in THREAD_STATS if x[0] == ID]) == 0:
-			THREAD_STATS.append([ID, 0])
-		else:
-			for tup in THREAD_STATS:
-				if tup[0] == ID:
-					tup[1] = 0
-	else:
-		if len([1 for x in THREAD_STATS if x[0] == ID]) == 0:
-			THREAD_STATS.append([ID, 1])
-		else:
-			for tup in THREAD_STATS:
-				if tup[0] == ID:
-					tup[1] = 1
-	
-
-	if COUNT > 25:
-		print ">>>>>>>>>> TIMEOUT: Suspending all threads..."
-		COUNT = 0
-		update_run(process, 1)
-	else:
-		update_run(process, 0)
-
-
-def free_callback(frame, bp_loc, dict):
-	thread = frame.GetThread()
-	process = thread.GetProcess()
-	ID = thread.GetThreadID()
-	#print "FREE:  A sub-breakpoint has been triggered by thread %d" % (ID)
 
 	global OBJ_ARR
-	print "INFO:  OBJ_ARR = " + str(OBJ_ARR)
+	global THREAD_ARR
+	global RUNNING
 
+	thread.Suspend()
+
+	# TODO: Need better way to find TSAN reported variable addresses
 	obj = str(frame.FindVariable("obj")).split()[-1]
-	cleanup = frame.FindVariable("obj").GetChildMemberWithName("cleanup")
-
-	print "FREE:  Freeing &obj = " + obj
-	print "FREE:  obj->cleanup = " + str(cleanup).split()[-1] 
+	print str(time.time()) + " WRITE: [" + str(ID) + "] Setting " + obj + "..."
 
 	if obj in OBJ_ARR:
-		print ">>>>>>>>>> FREE:  Found match at " + obj
+		print ">>>>>>>>>> WRITE: [" + str(ID) + "] Found match!"
+		print "addr=" + obj + "  tid1=" + str(THREAD_ARR[OBJ_ARR.index(obj)]) + "  tid2=" + str(ID)
 		print "**************************** HALT ****************************"
-		update_run(process, 1)
-	else:
-		if len([1 for x in THREAD_STATS if x[0] == ID]) == 0:
-			THREAD_STATS.append([ID, 1])
-		else:
-			for tup in THREAD_STATS:
-				if tup[0] == ID:
-					tup[1] = 1
+		RUNNING = False
+		process.Stop()
 
-		update_run(process, 0)
+	else:
+		update_timer()
+
+		OBJ_ARR.append(obj)
+		THREAD_ARR.append(ID)
+
+		# Randomly select a thread to be released if all threads are suspended
+		if all_bp_hit():
+			release_bp()
+		else:
+			process.Continue()
 
 
 def __lldb_init_module(debugger, dict):
-    #debugger.HandleCommand('command script add -f trigger.set_trigger trig')
-    #print "The \"trig\" python command has been installed and is ready for use."
 	print "Setting trigger..."
 	set_trigger()
-	print "Starting server..."
+	timer()
 	debugger.HandleCommand('run -k start -X')
-
-
-
 
 
 
