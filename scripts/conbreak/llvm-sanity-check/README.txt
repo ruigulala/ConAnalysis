@@ -13,11 +13,13 @@ $ make
 
 ### Usage:
 ```
-$ lldb httpd
+$ lldb test
 (lldb) command script import trig[1,2].py
 ```
 Wait five seconds or so (about 5 sets of "Trying again..." messages).  If the program is still running, you're good!  If the program has terminated... :(
 
 ### Troubleshooting:
-Good luck... make sure you're running the sanity check within lldb.
-Maybe try reinstalling LLVM/LLDB?
+* Try running it a couple more times
+* Make sure you're running the sanity check within lldb
+* Maybe try reinstalling LLVM/LLDB?
+* Good luck...

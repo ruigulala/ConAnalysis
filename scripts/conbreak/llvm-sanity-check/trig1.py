@@ -21,8 +21,9 @@ def read_callback(frame, bp_loc, dict):
 	process = thread.GetProcess()
 	ID = thread.GetThreadID()
 
-	obj = str(frame.FindVariable("status"))
-	print "READ: tid=" + str(ID) + "   status=" + obj
+	# Was trying to print out status variable... how do you get global vars?
+	#obj = str(frame.FindVariable("status")).split()[-1]
+	#print "READ: tid=" + str(ID) + "   status=" + obj
 	
 	thread.Resume()
 	process.Continue()
