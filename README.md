@@ -1,6 +1,6 @@
 # ConAnalysis
 Concurrency Attack Analysis.
-Right now, all the developement is under Ubuntu 14.04 LTS. Make sure you have allocated at least 4GB memory. Otherwise the linking process may run out of memory and fail.
+Right now, all the developement is under Ubuntu 16.04 LTS. Make sure you have allocated at least 4GB memory. Otherwise the LLVM linking process may run out of memory and fail.
 
 ## Install LLVM 3.8.0 & clang 3.8.0 & LLDB 3.8.0.
 
