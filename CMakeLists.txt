@@ -8,9 +8,11 @@ find_package(LLVM CONFIG REQUIRED)
 #include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 include_directories(include)
 
-add_subdirectory(lib/DOL)
+add_subdirectory(lib/Misc/Inst2Int)
 add_subdirectory(lib/CDG)
-add_subdirectory(lib/ConAnal)
+add_subdirectory(lib/SyncLoop)
+#add_subdirectory(lib/DOL)
+#add_subdirectory(lib/ConAnal)
 add_subdirectory(TESTS/libsafe-cve-1125) # real exploit exists
 add_subdirectory(TESTS/libvirt-cve-1447) # real exploit exists
 add_subdirectory(TESTS/apache-21287) # concurrency bug
@@ -39,7 +41,7 @@ macro (do_test arg result)
 endmacro (do_test)
 
 # test libsafe-cve-1125
-add_test(libsafe-cve-1125.test "${PROJECT_BINARY_DIR}/TESTS/libsafe-cve-1125/autotest.sh" "libsafe-cve-1125" "${PROJECT_BINARY_DIR}/TESTS/libsafe-cve-1125/race_report.txt")
+add_test(libsafe-cve-1125.test "${PROJECT_BINARY_DIR}/TESTS/libsafe-cve-1125/autotestConAnalysis.sh" "libsafe-cve-1125" "${PROJECT_BINARY_DIR}/TESTS/libsafe-cve-1125/race_report.txt")
 set_tests_properties (libsafe-cve-1125.test
   PROPERTIES PASS_REGULAR_EXPRESSION "\\[ 5 628 629 631 632 636 638 639 643 \\]"
   )

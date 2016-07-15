@@ -57,15 +57,6 @@ void ConAnalysis::clearClassDataMember() {
   funcEnterExitValMap_.clear();
 }
 
-bool ConAnalysis::add2CorruptedIR_(Value * v) {
-  if (!corruptedIR_.count(v)) {
-    orderedcorruptedIR_.push_back(v);
-    corruptedIR_.insert(v);
-    return true;
-  }
-  return false;
-}
-
 const Function* ConAnalysis::findEnclosingFunc(const Value* V) {
   if (const Argument* Arg = dyn_cast<Argument>(V)) {
     return Arg->getParent();
@@ -478,20 +469,6 @@ bool ConAnalysis::getCorruptedIRs(Module &M, DOL &labels, bool inLoop,
       bool corruptInBr = false;
       for (auto itr = orderedcorruptedIR_.begin();
           itr != orderedcorruptedIR_.end(); itr++) {
-        //if (isa<BranchInst>(*itr)) {
-          //Instruction * brIns = dyn_cast<Instruction>(*itr);
-          //LoopInfo &LI = getAnalysis<LoopInfo>(*F);
-          //BasicBlock * brBB = brIns->getParent();
-          //if ((LI.getLoopFor(brBB))->isLoopExiting(brBB)) {
-              //errs() << "**************************************************\n";
-              //errs() << "                Busy Loop Detected!               \n";
-              //errs() << "%" << ins2int_[I] <<
-                //" may have the control of breaking out a loop\n";
-              //errs() << "**************************************************\n";
-              //errs() << "\n";
-              //break;
-          //}
-        //}
         if (isa<ICmpInst>(*itr)) {
           DEBUG(errs() << "==== if statement found ! ====\n");
           F = dyn_cast<Instruction>(*itr)->getParent()->getParent();
@@ -755,7 +732,7 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
       // we couldn't obtain its function body(external function), we'll treat
       // the return value of the call instruction as corrupted.
       if (callee->begin() == callee->end() && paramsCorrupted) {
-        add2CorruptedIR_(&*I);
+        add2CrptList(&*I);
         continue;
       }
       if (funcEnterExitValMap_.count(callee) != 0) {
