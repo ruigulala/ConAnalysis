@@ -41,7 +41,7 @@ void SyncLoop::clearClassDataMember() {
   finishedVars_.clear();
   readFuncInstList_.clear();
   writeFuncInstList_.clear();
-	corruptedIR_.clear();
+  corruptedIR_.clear();
   orderedcorruptedIR_.clear();
   corruptedPtr_.clear();
   corruptedBr_.clear();
@@ -162,7 +162,7 @@ void SyncLoop::initialize(FuncFileLineList &csinput) {
           readFuncInstList_.push_back(std::make_pair(&*func, *listit));
         finishedVars_.insert(*listit);
         errs() << "---- ";
-				printInst(*listit);
+        printInst(*listit);
         errs() << " ----\n";
       } else if (isa<CallInst>(*listit) || isa<InvokeInst>(*listit)) {
         CallSite cs(*listit);
@@ -212,7 +212,7 @@ void SyncLoop::initialize(FuncFileLineList &csinput) {
           readFuncInstList_.push_back(std::make_pair(&*func, *listit));
         finishedVars_.insert(*listit);
         errs() << "---- ";
-				printInst(*listit);
+        printInst(*listit);
         errs() << " ----\n";
       }
     }
@@ -328,7 +328,7 @@ bool SyncLoop::intraFlowAnalysis(Function * F, Instruction * ins) {
       BasicBlock * brBB = brIns->getParent();
       BasicBlock * insBB = I->getParent();
       if (cdgBase.influences(brBB, insBB)) {
-			  add2CrptList(&*I);
+        add2CrptList(&*I);
         break;
       }
     }
@@ -400,7 +400,7 @@ bool SyncLoop::intraFlowAnalysis(Function * F, Instruction * ins) {
               add2CrptList(v);
             } else if (isa<BranchInst>(&*I)) {
               bool found = (std::find(corruptedBr_.begin(), corruptedBr_.end(),
-              												&*I) != corruptedBr_.end());
+                                      &*I) != corruptedBr_.end());
               if (!found)
                 corruptedBr_.push_back(&*I);
               localCorruptedBr_.push_back(&*I);
@@ -431,7 +431,7 @@ bool SyncLoop::adhocSyncAnalysis(FuncFileLineList &input) {
         break;
       }
     }
-		FuncFileLineList::iterator it = input.begin();
+    FuncFileLineList::iterator it = input.begin();
     if (corruptInBr) {
       BasicBlock * BB = I->getParent();
       for (succ_iterator SI = succ_begin(BB), E = succ_end(BB); SI != E;
@@ -441,23 +441,23 @@ bool SyncLoop::adhocSyncAnalysis(FuncFileLineList &input) {
         if (loop && loop->isLoopExiting(*SI)) {
           errs() << "**************************************************\n";
           errs() << "                Busy Loop Detected!               \n";
-					errs() << "Write Instruction ";
-					errs() << "(" << std::get<1>(*it) << " : " << std::get<2>(*it) << ")\n";
-					it++;
-					errs() << "Read Instruction ";
-					errs() << "(" << std::get<1>(*it) << " : " << std::get<2>(*it) << ")\n";
-					printInst(I);
+          errs() << "Write Instruction ";
+          errs() << "(" << std::get<1>(*it) << " : " << std::get<2>(*it) << ")\n";
+          it++;
+          errs() << "Read Instruction ";
+          errs() << "(" << std::get<1>(*it) << " : " << std::get<2>(*it) << ")\n";
+          printInst(I);
           errs() << "\n**************************************************\n";
           errs() << "\n";
           break;
         }
       }
     }
-		// Clear data sets for next iteration
-		corruptedIR_.clear();
-		orderedcorruptedIR_.clear();
-		corruptedPtr_.clear();
-		corruptedBr_.clear();
+    // Clear data sets for next iteration
+    corruptedIR_.clear();
+    orderedcorruptedIR_.clear();
+    corruptedPtr_.clear();
+    corruptedBr_.clear();
   }
   return true;
 }
