@@ -92,7 +92,7 @@ class SyncLoop : public ModulePass {
     void parseInput(std::string inputfile, FuncFileLineList &csinput);
     void initialize(FuncFileLineList &csInput);
     bool intraFlowAnalysis(Function * F, Instruction * ins);
-    bool adhocSyncAnalysis();
+    bool adhocSyncAnalysis(FuncFileLineList &input);
 };
 }// namespace ConAnal
 #endif  // INCLUDE_CONANAL_SYNCLOOP_H_

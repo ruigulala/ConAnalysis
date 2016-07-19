@@ -41,6 +41,10 @@ void SyncLoop::clearClassDataMember() {
   finishedVars_.clear();
   readFuncInstList_.clear();
   writeFuncInstList_.clear();
+	corruptedIR_.clear();
+  orderedcorruptedIR_.clear();
+  corruptedPtr_.clear();
+  corruptedBr_.clear();
 }
 
 bool SyncLoop::add2CrptList(Value * v) {
@@ -73,7 +77,6 @@ bool SyncLoop::printInst(Instruction *i) {
     file = file.substr(file.find_last_of("\\/") + 1);
     errs() << " | " << file << " : " << line;
   }
-  errs() << "\n";
   return true;
 }
 
@@ -158,8 +161,8 @@ void SyncLoop::initialize(FuncFileLineList &csinput) {
         else
           readFuncInstList_.push_back(std::make_pair(&*func, *listit));
         finishedVars_.insert(*listit);
-        errs() << "----";
-        (*listit)->print(errs());errs();
+        errs() << "---- ";
+				printInst(*listit);
         errs() << " ----\n";
       } else if (isa<CallInst>(*listit) || isa<InvokeInst>(*listit)) {
         CallSite cs(*listit);
@@ -208,8 +211,8 @@ void SyncLoop::initialize(FuncFileLineList &csinput) {
         else
           readFuncInstList_.push_back(std::make_pair(&*func, *listit));
         finishedVars_.insert(*listit);
-        errs() << "----";
-        (*listit)->print(errs());errs();
+        errs() << "---- ";
+				printInst(*listit);
         errs() << " ----\n";
       }
     }
@@ -286,11 +289,9 @@ bool SyncLoop::iterateLoops(std::set<BasicBlock *> &firstInsBBSet, Loop *L,
 
 bool SyncLoop::intraFlowAnalysis(Function * F, Instruction * ins) {
   bool rv = false;
-  bool ctrlDep = false;
   std::list<Instruction *> localCorruptedBr_;
   auto I = inst_begin(F);
   Inst2IntMap & ins2int = I2I->getInst2IntMap();
-  errs() << ctrlDep;
 
   for (; I != inst_end(F); ++I) {
     if (&*I == &*ins) {
@@ -328,7 +329,6 @@ bool SyncLoop::intraFlowAnalysis(Function * F, Instruction * ins) {
       BasicBlock * insBB = I->getParent();
       if (cdgBase.influences(brBB, insBB)) {
 			  add2CrptList(&*I);
-        ctrlDep = true;
         break;
       }
     }
@@ -415,23 +415,23 @@ bool SyncLoop::intraFlowAnalysis(Function * F, Instruction * ins) {
   return rv;
 }
 
-bool SyncLoop::adhocSyncAnalysis() {
+bool SyncLoop::adhocSyncAnalysis(FuncFileLineList &input) {
   for (auto cs_itr : readFuncInstList_) {
-    intraFlowAnalysis(cs_itr.first, cs_itr.second);
     Function *F = cs_itr.first;
     Instruction *I = cs_itr.second;
+    intraFlowAnalysis(F, I);
     bool corruptInBr = false;
     for (auto itr = orderedcorruptedIR_.begin();
         itr != orderedcorruptedIR_.end(); itr++) {
       if (isa<ICmpInst>(*itr)) {
-        DEBUG(errs() << "==== if statement found ! ====\n");
+        errs() << "==== Branch Statement Found ! ====\n";
         F = dyn_cast<Instruction>(*itr)->getParent()->getParent();
         I = dyn_cast<Instruction>(*itr);
         corruptInBr = true;
         break;
       }
     }
-
+		FuncFileLineList::iterator it = input.begin();
     if (corruptInBr) {
       BasicBlock * BB = I->getParent();
       for (succ_iterator SI = succ_begin(BB), E = succ_end(BB); SI != E;
@@ -441,14 +441,23 @@ bool SyncLoop::adhocSyncAnalysis() {
         if (loop && loop->isLoopExiting(*SI)) {
           errs() << "**************************************************\n";
           errs() << "                Busy Loop Detected!               \n";
-          printInst(I);
-          errs() << " may have the control of breaking out a loop\n";
-          errs() << "**************************************************\n";
+					errs() << "Write Instruction ";
+					errs() << "(" << std::get<1>(*it) << " : " << std::get<2>(*it) << ")\n";
+					it++;
+					errs() << "Read Instruction ";
+					errs() << "(" << std::get<1>(*it) << " : " << std::get<2>(*it) << ")\n";
+					printInst(I);
+          errs() << "\n**************************************************\n";
           errs() << "\n";
           break;
         }
       }
     }
+		// Clear data sets for next iteration
+		corruptedIR_.clear();
+		orderedcorruptedIR_.clear();
+		corruptedPtr_.clear();
+		corruptedBr_.clear();
   }
   return true;
 }
@@ -470,12 +479,10 @@ bool SyncLoop::runOnModule(Module &M) {
   if (inLoop) {
     errs() << "==== First Instruction Is In A Loop ! ====\n";
     errs() << "==== Start Adhoc Synchronization Analysis ====\n";
-    adhocSyncAnalysis();
+    adhocSyncAnalysis(racingLines);
   }
   return false;
 }
-
-
 
 //**********************************************************************
 // print (do not change this method)
