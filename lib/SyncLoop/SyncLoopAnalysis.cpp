@@ -441,10 +441,10 @@ bool SyncLoop::adhocSyncAnalysis(FuncFileLineList &input) {
         if (loop && loop->isLoopExiting(*SI)) {
           errs() << "**************************************************\n";
           errs() << "                Busy Loop Detected!               \n";
-          errs() << "Write Instruction ";
-          errs() << "(" << std::get<1>(*it) << " : " << std::get<2>(*it) << ")\n";
+          errs() << "Write Inst ";
+          errs() << "(" << std::get<1>(*it) << " : " << std::get<2>(*it) << ") ";
           it++;
-          errs() << "Read Instruction ";
+          errs() << "Read Inst ";
           errs() << "(" << std::get<1>(*it) << " : " << std::get<2>(*it) << ")\n";
           printInst(I);
           errs() << "\n**************************************************\n";
