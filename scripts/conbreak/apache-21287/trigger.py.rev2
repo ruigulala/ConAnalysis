@@ -14,6 +14,7 @@ WAIT_TIME = 1
 LAST_BREAK = 0
 RUNNING = False
 OBJ_ARR = []
+THREAD_ARR = []
 
 FILE_READ = ""
 LINE_NUM_READ = 0
@@ -40,8 +41,8 @@ def set_trigger():
 	global LINE_NUM_WRITE
 	global COLUMN_NUM_WRITE
 
-	in_read = "util_time.c:135:9"
-	in_write = "util_time.c:165:9"
+	in_read = "cache_util.c:284:11"
+	in_write = "mod_mem_cache.c:885:9"
 
 	tokens_read = in_read.split(":")
 	tokens_write = in_write.split(":")
@@ -132,6 +133,7 @@ def release_bp():
 		return
 
 	global OBJ_ARR
+	global THREAD_ARR
 
 	obj_arr_len = len(OBJ_ARR)
 
@@ -142,12 +144,13 @@ def release_bp():
 	# Make sure process is stopped before modifying thread states
 
 	rand = random.randrange(0, obj_arr_len)
-	thread = process.GetThreadByID(OBJ_ARR[rand][-1])
+	thread = process.GetThreadByID(THREAD_ARR[rand])
 
-	#process.SetSelectedThreadByID(thread.GetThreadID())
+	process.SetSelectedThreadByID(thread.GetThreadID())
 
 	print str(time.time()) + " >>>>>>>>>> INFO: Releasing thread " + str(thread.GetThreadID())
 
+#	if process.state == lldb.eStateRunning:
 	if not process.is_stopped:
 		process.Stop()
 
@@ -156,63 +159,55 @@ def release_bp():
 		return
 
 	del OBJ_ARR[rand]
+	del THREAD_ARR[rand]
 
 
-# TSAN will sometimes report inaccurate line numbers causing get_addr to fail
+# TSAN will sometimes not report accurate line numbers causing get_addr to fail
 def get_addr(frame, filename, line_num, column_num):
 	filespec = lldb.SBFileSpec(filename, False)
 	if not filespec.IsValid():
 		print " ####### FILESPEC INVALID ####### "
 	
-	target = lldb.debugger.GetSelectedTarget()
-	source_mgr = target.GetSourceManager()
+	source_mgr = lldb.debugger.GetSelectedTarget().GetSourceManager()
 	stream = lldb.SBStream()
 	source_mgr.DisplaySourceLinesWithLineNumbers(filespec, line_num, 0, 0, "", stream)
 
 	# Needs some refinement.  Hacky so just exit on error
 	try:
+		# Ad-hoc way of getting source code, SourceManager isn't working...
+		# Go through lldb command line, store result in res
+		#
+		# res = lldb.SBCommandReturnObject()
+		# ci = lldb.debugger.GetCommandInterpreter()
+		# ci.HandleCommand("source list -f " + filename + " -l " + str(line_num), res)
+
+		# Get first line from output and cut out line number which is padded to one tab (8 spaces)
+		# Unintended consequence is that this only supports line numbers up to 5 digits = 99,999
+		# We don't think this is really that big of a deal because source files with > 100,000 lines
+		# of code are very, very, very rare
+		#
+		# src_line = res.GetOutput().split("\n")[0]
+
 		src_line = stream.GetData().split("\n")[0]
+		obj_name = src_line[7 + column_num:]
+		tmp = obj_name
 
-		src_line = [src_line]
-		break_chars = [" ", "\n", ",", ";", "(", ")"]
+		start = 0
+		# This parsing mechanism assumes the use standard C coding styles, ie.
+		# Spaces between operators, unambigious code, etc.
+		break_chars = [" ", "\n", ",", ";", ")"]
+		for i, char in enumerate(obj_name):
+			if char == "(":
+				start = i + 1
 
-		# Split source line up using break_chars as delimiters
-		for char in break_chars:
-			src_line = [s.split(char) for s in src_line]
-			src_line = [item for sublist in src_line for item in sublist]
+			if char in break_chars:
+				obj_name = obj_name[start:i]
+				break
 
-		# Remove blank strings from list
-		src_line = filter(None, src_line)
-
-		# Remove escape characters (can cause errors)
-		escapes = ''.join([chr(char) for char in range(1, 32)])
-		src_line = [c for c in src_line if c.translate(None, escapes) != ""]
-
-		# Remove operators
-		break_chars = ["++", "--", "!", "*", "&"]
-		for op in break_chars:
-			src_line = [token.replace(op, "") for token in src_line]
-
-		# Remove blank strings again..
-		src_line = filter(None, src_line)
-
-		print "Tokens >>>>>>>>>>>> " + str(src_line)
-
-		# Try to find a variable that matches a token and save its address
-		addrs = []
-		for token in src_line:
-			# obj = frame.EvaluateExpression(token)
-			obj = frame.GetValueForVariablePath(token)
-
-			print token + " => " + str(obj) + " => " + str(obj.GetAddress())
-
-			# Very hacky way to verify extracted variable is valid
-			# TODO: Is there a better way to do this?
-			# obj.IsValid() does not work, frame.FindVariable() cannot find globals,
-			# target.FindFirstGlobalVariable() can't resolve complex expressions.  Only 
-			# method I haven't really tried is manually searching frame.GetVariables()
-			if str(obj.GetAddress()) != "No value":
-				addrs.append(obj.GetAddress().__hex__())
+		# Cut out any variable operator prefixes and postfixes
+		break_misc = ["++", "--", "!", "*", "&"]
+		for op in break_misc:
+			obj_name = obj_name.replace(op, "")
 	
 	except (KeyboardInterrupt, SystemExit):
 		raise
@@ -222,32 +217,25 @@ def get_addr(frame, filename, line_num, column_num):
 		print sys.exc_info()[0]
 		exit()
 
-	if len(addrs) == 0:
-		print "####### ERROR: No variables found #######"
-		exit()
+	# Debug info
+#	print "[" + filename + ":" + str(line_num) + ":" + str(column_num) + "] >>> " + src_line
+#	print "Sliced Variable >>> " + tmp
+#	print "Extracted Variable >>> " + obj_name
 
-	return addrs
+	# Get SBValue object from extracted variable name
+	obj = frame.EvaluateExpression(obj_name)
+
+	# TODO: Exit on "No value", print error message
+	return str(obj.GetAddress())
 
 
-# Match if addresses match and instructions differ
-def match(arr):
-	matches = []
-
+# True if addresses match and instructions differ
+def match(addr):
 	for obj in OBJ_ARR:
+		if obj[0] == addr[0] and obj[1] != addr[1]:
+			return True
 
-		# Only considered a match if instructions differ
-		# TODO: Change so only one has to be a WRITE
-		if obj[-2] != arr[-2]:
-
-			# Check through all watched addresses
-			for addr1 in obj[:-2]:
-				for addr2 in arr[:-2]:
-
-					# Add address and tid to list if addresses match
-					if addr1 == addr2:
-						matches.append([addr1, obj[-1]])
-
-	return matches
+	return False
 
 
 def read_callback(frame, bp_loc, dict):
@@ -255,30 +243,25 @@ def read_callback(frame, bp_loc, dict):
 	process = thread.GetProcess()
 	ID = thread.GetThreadID()
 
-	process_lock.acquire()
-
 	global OBJ_ARR
+	global THREAD_ARR
 	global RUNNING
+
+	process_lock.acquire()
 
 	RUNNING = False
 	thread.Suspend()
 
-	print "READ BP"
-	addrs = get_addr(frame, FILE_READ, LINE_NUM_READ, COLUMN_NUM_READ)
+	obj = get_addr(frame, FILE_READ, LINE_NUM_READ, COLUMN_NUM_READ)
+	print str(time.time()) + " READ:  [" + str(ID) + "] Checking " + obj + "..."
 
-	for obj in addrs:
-		print str(time.time()) + " READ:  [" + str(ID) + "] Checking " + obj + "..."
+	obj = [obj, "R"]
 
-	addrs.append("R")
-	addrs.append(ID)
-
-	matches = match(addrs)
-	if len(matches) > 0:
+	if match(obj):
 		print ">>>>>>>>>> READ:  [" + str(ID) + "] Found match!"
 
-		for m in matches:
-			print "addr=" + m[0] + "  tid1=" + str(m[1]) + "  tid2=" + str(ID)
-
+		tid = str(THREAD_ARR[OBJ_ARR.index([obj[0], "W"])])
+		print "addr=" + obj[0] + "  tid1=" + tid + "  tid2=" + str(ID)
 		print "**************************************************************"
 		print "**************************** HALT ****************************"
 		print "**************************************************************"
@@ -287,7 +270,8 @@ def read_callback(frame, bp_loc, dict):
 	else:
 		update_timer()
 
-		OBJ_ARR.append(addrs)
+		OBJ_ARR.append(obj)
+		THREAD_ARR.append(ID)
 
 		# Randomly select a thread to be released if all threads are suspended
 		if all_bp_hit():
@@ -304,30 +288,25 @@ def write_callback(frame, bp_loc, dict):
 	process = thread.GetProcess()
 	ID = thread.GetThreadID()
 
-	process_lock.acquire()
-
 	global OBJ_ARR
+	global THREAD_ARR
 	global RUNNING
+
+	process_lock.acquire()
 
 	RUNNING = False
 	thread.Suspend()
 
-	print "WRITE BP"
-	addrs = get_addr(frame, FILE_WRITE, LINE_NUM_WRITE, COLUMN_NUM_WRITE)
+	obj = get_addr(frame, FILE_WRITE, LINE_NUM_WRITE, COLUMN_NUM_WRITE)
+	print str(time.time()) + " WRITE: [" + str(ID) + "] Setting  " + obj + "..."
 
-	for obj in addrs:
-		print str(time.time()) + " WRITE: [" + str(ID) + "] Setting  " + obj + "..."
+	obj = [obj, "W"]
 
-	addrs.append("W")
-	addrs.append(ID)
-
-	matches = match(addrs)
-	if len(matches) > 0:
+	if match(obj):
 		print ">>>>>>>>>> WRITE: [" + str(ID) + "] Found match!"
 
-		for m in matches:
-			print "addr=" + m[0] + "  tid1=" + str(m[1]) + "  tid2=" + str(ID)
-
+		tid = str(THREAD_ARR[OBJ_ARR.index([obj[0], "R"])])
+		print "addr=" + obj[0] + "  tid1=" + tid + "  tid2=" + str(ID)
 		print "**************************************************************"
 		print "**************************** HALT ****************************"
 		print "**************************************************************"
@@ -336,7 +315,8 @@ def write_callback(frame, bp_loc, dict):
 	else:
 		update_timer()
 
-		OBJ_ARR.append(addrs)
+		OBJ_ARR.append(obj)
+		THREAD_ARR.append(ID)
 
 		# Randomly select a thread to be released if all threads are suspended
 		if all_bp_hit():
