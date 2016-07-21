@@ -3,17 +3,33 @@
 import lldb
 import commands
 import argparse
+import threading
 import sys
+
+counter = 0
 
 def set_trigger():
 	print "Setting breakpoints in mod_mem_cache.c at lines 354 and 653..."
 	target = lldb.debugger.GetSelectedTarget()
+
+	#threading.Timer(10, f).start()
+
 	bp_read = target.BreakpointCreateByLocation("test.c", 12)
 	bp_write = target.BreakpointCreateByName("set_status")
 
 	bp_read.SetScriptCallbackFunction("trig1.read_callback")
 	bp_write.SetScriptCallbackFunction("trig1.write_callback")
 	print("Configuration done!")
+
+
+def f():
+	print "RESUMING ALL THREADS"
+
+	p = lldb.debugger.GetSelectedTarget().GetProcess()
+	for t in p:
+		t.Resume()
+
+	p.Continue()
 
 
 def read_callback(frame, bp_loc, dict):
@@ -25,6 +41,13 @@ def read_callback(frame, bp_loc, dict):
 	#obj = str(frame.FindVariable("status")).split()[-1]
 	#print "READ: tid=" + str(ID) + "   status=" + obj
 	
+	global counter
+
+	counter += 1
+	if counter == 20:
+		for t in process:
+			t.Resume()
+
 	thread.Resume()
 	process.Continue()
 

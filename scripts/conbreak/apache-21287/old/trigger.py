@@ -12,7 +12,7 @@ WAIT_TIME = 1
 
 # DO NOT CHANGE
 LAST_BREAK = 0
-RUNNING = False
+RUNNING = True
 OBJ_ARR = []
 THREAD_ARR = []
 
@@ -23,11 +23,8 @@ FILE_WRITE = ""
 LINE_NUM_WRITE = 0
 COLUMN_NUM_WRITE = 0
 
-# Locks
-# TODO: Right now locking mechanism is very coarse grained.  Future work should aim
-# to improve the granularity of locks to increase performance
-timer_lock = threading.Lock()
-process_lock = threading.Lock()
+update_lock = threading.Lock()
+release_lock = threading.Lock()
 
 
 def set_trigger():
@@ -41,8 +38,8 @@ def set_trigger():
 	global LINE_NUM_WRITE
 	global COLUMN_NUM_WRITE
 
-	in_read = "cache_util.c:284:11"
-	in_write = "mod_mem_cache.c:885:9"
+	in_read = "cache_storage.c:286:40"
+	in_write = "mod_mem_cache.c:897:9"
 
 	tokens_read = in_read.split(":")
 	tokens_write = in_write.split(":")
@@ -60,50 +57,30 @@ def set_trigger():
 
 	bp_read.SetScriptCallbackFunction("trigger.read_callback")
 	bp_write.SetScriptCallbackFunction("trigger.write_callback")
-
-	update_timer()
-	timer()
-
 	print("Configuration done!")
 
 
 # Release a thread if stable state is reached
 def timer():
-	process_lock.acquire()
-
-	global RUNNING
+	threading.Timer(0.1, timer).start()
 
 	if RUNNING and time.time() - LAST_BREAK > WAIT_TIME:
-		process = lldb.debugger.GetSelectedTarget().GetProcess()
-
-		RUNNING = False
-
+		lldb.debugger.GetSelectedTarget().GetProcess().Stop()
 		update_timer()
 		release_bp()
 
-		RUNNING = True
-		process.Continue()
-
-	process_lock.release()
-
-	# We don't care about timing drift, we just want timer() to be called periodically
-	threading.Timer(0.1, timer).start()
 
 def update_timer():
-	timer_lock.acquire()
+	update_lock.acquire()
 
 	global LAST_BREAK
 	LAST_BREAK = time.time()
 
-	timer_lock.release()
+	update_lock.release()
 
 
 # Check to see if every thread is at a breakpoint
-# TODO: We need a better way to check if all threads are currently suspended..
-# Sometimes not all threads will be suspended but program still stops, leaving 
-# the job of releasing BPs to fall back to the timeout
 def all_bp_hit():
-	# Old mechanism. Just check if all threads are suspended..
 #	for t in lldb.debugger.GetSelectedTarget().GetProcess():
 #		if not t.IsSuspended():
 #			return False
@@ -111,25 +88,25 @@ def all_bp_hit():
 #	return True
 
 	c = 0
-	res = False
-
 	for t in lldb.debugger.GetSelectedTarget().GetProcess():
 		if t.IsSuspended():
 			c += 1
 
-	if c >= 10:
-		res = True
+	if c >= 8:
+		return True
 	
-	return res
+	return False
 
-# Expects process to already be stopped.  Will resume thread, but expects 
-# process.Continue() to be called by calling function
+
 def release_bp():
+	release_lock.acquire()
+
 	process = lldb.debugger.GetSelectedTarget().GetProcess()
 
 	# Check if process is invalid, can cause errors
 	if process.IsValid() == False:
-		print "######## WARNING: PROCESS IS INVALID ########"
+		#print "######## WARNING: PROCESS IS INVALID ########"
+		release_lock.release()
 		return
 
 	global OBJ_ARR
@@ -139,30 +116,28 @@ def release_bp():
 
 	# No more suspended threads...
 	if obj_arr_len == 0:
+		release_lock.release()
 		return
-
-	# Make sure process is stopped before modifying thread states
 
 	rand = random.randrange(0, obj_arr_len)
 	thread = process.GetThreadByID(THREAD_ARR[rand])
 
-	process.SetSelectedThreadByID(thread.GetThreadID())
-
-	print str(time.time()) + " >>>>>>>>>> INFO: Releasing thread " + str(thread.GetThreadID())
-
-#	if process.state == lldb.eStateRunning:
-	if not process.is_stopped:
-		process.Stop()
-
-	if thread.Resume() == False:
-		print "### ERROR IN THREAD.RESUME() ###"
-		return
+	print str(time.time()) + " >>>>>>>>>> TIMEOUT: Releasing thread " + str(thread.GetThreadID())
 
 	del OBJ_ARR[rand]
 	del THREAD_ARR[rand]
 
+	if thread.IsValid() == False:
+		print "### THREAD IS INVALID ###"
+	if thread.Resume() == False:
+		print "### ERROR IN THREAD.RESUME() ###"
 
-# TSAN will sometimes not report accurate line numbers causing get_addr to fail
+	if process.Continue().Success() == False:
+		print "### ERROR IN PROCESS.CONTINUE() ###"
+
+	release_lock.release()
+
+
 def get_addr(frame, filename, line_num, column_num):
 	filespec = lldb.SBFileSpec(filename, False)
 	if not filespec.IsValid():
@@ -171,6 +146,7 @@ def get_addr(frame, filename, line_num, column_num):
 	source_mgr = lldb.debugger.GetSelectedTarget().GetSourceManager()
 	stream = lldb.SBStream()
 	source_mgr.DisplaySourceLinesWithLineNumbers(filespec, line_num, 0, 0, "", stream)
+
 
 	# Needs some refinement.  Hacky so just exit on error
 	try:
@@ -218,21 +194,19 @@ def get_addr(frame, filename, line_num, column_num):
 		exit()
 
 	# Debug info
-#	print "[" + filename + ":" + str(line_num) + ":" + str(column_num) + "] >>> " + src_line
-#	print "Sliced Variable >>> " + tmp
-#	print "Extracted Variable >>> " + obj_name
+	print "[" + filename + ":" + str(line_num) + ":" + str(column_num) + "] >>> " + src_line
+	print "Sliced Variable >>> " + tmp
+	print "Extracted Variable >>> " + obj_name
 
 	# Get SBValue object from extracted variable name
 	obj = frame.EvaluateExpression(obj_name)
-
-	# TODO: Exit on "No value", print error message
 	return str(obj.GetAddress())
 
 
-# True if addresses match and instructions differ
 def match(addr):
 	for obj in OBJ_ARR:
 		if obj[0] == addr[0] and obj[1] != addr[1]:
+			# True if addresses match and instructions differ
 			return True
 
 	return False
@@ -247,40 +221,32 @@ def read_callback(frame, bp_loc, dict):
 	global THREAD_ARR
 	global RUNNING
 
-	process_lock.acquire()
-
-	RUNNING = False
 	thread.Suspend()
 
 	obj = get_addr(frame, FILE_READ, LINE_NUM_READ, COLUMN_NUM_READ)
 	print str(time.time()) + " READ:  [" + str(ID) + "] Checking " + obj + "..."
 
-	obj = [obj, "R"]
-
-	if match(obj):
+	if match([obj, "R"]):
 		print ">>>>>>>>>> READ:  [" + str(ID) + "] Found match!"
-
-		tid = str(THREAD_ARR[OBJ_ARR.index([obj[0], "W"])])
-		print "addr=" + obj[0] + "  tid1=" + tid + "  tid2=" + str(ID)
+		print "addr=" + obj + "  tid1=" + str(THREAD_ARR[OBJ_ARR.index([obj, "W"])]) + "  tid2=" + str(ID)
 		print "**************************************************************"
 		print "**************************** HALT ****************************"
 		print "**************************************************************"
+		RUNNING = False
 		process.Stop()
 
 	else:
 		update_timer()
 
+		obj = [obj, "R"]
 		OBJ_ARR.append(obj)
 		THREAD_ARR.append(ID)
 
 		# Randomly select a thread to be released if all threads are suspended
 		if all_bp_hit():
 			release_bp()
-
-		RUNNING = True
-		process.Continue()
-
-	process_lock.release()
+		else:
+			process.Continue()
 
 
 def write_callback(frame, bp_loc, dict):
@@ -292,48 +258,40 @@ def write_callback(frame, bp_loc, dict):
 	global THREAD_ARR
 	global RUNNING
 
-	process_lock.acquire()
-
-	RUNNING = False
 	thread.Suspend()
 
 	obj = get_addr(frame, FILE_WRITE, LINE_NUM_WRITE, COLUMN_NUM_WRITE)
 	print str(time.time()) + " WRITE: [" + str(ID) + "] Setting  " + obj + "..."
 
-	obj = [obj, "W"]
-
-	if match(obj):
+	if match([obj, "W"]):
 		print ">>>>>>>>>> WRITE: [" + str(ID) + "] Found match!"
-
-		tid = str(THREAD_ARR[OBJ_ARR.index([obj[0], "R"])])
-		print "addr=" + obj[0] + "  tid1=" + tid + "  tid2=" + str(ID)
+		print "addr=" + obj + "  tid1=" + str(THREAD_ARR[OBJ_ARR.index([obj, "R"])]) + "  tid2=" + str(ID)
 		print "**************************************************************"
 		print "**************************** HALT ****************************"
 		print "**************************************************************"
+		RUNNING = False
 		process.Stop()
 
 	else:
 		update_timer()
 
+		obj = [obj, "W"]
 		OBJ_ARR.append(obj)
 		THREAD_ARR.append(ID)
 
 		# Randomly select a thread to be released if all threads are suspended
 		if all_bp_hit():
 			release_bp()
-
-		RUNNING = True
-		process.Continue()
-
-	process_lock.release()
+		else:
+			process.Continue()
 
 
 def __lldb_init_module(debugger, dict):
 	print "Setting trigger..."
 	set_trigger()
-
-	# TODO: Let user specify program flags
+	timer()
 	debugger.HandleCommand('run -k start -X')
+
 
 
 
