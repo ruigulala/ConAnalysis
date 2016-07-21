@@ -14,13 +14,12 @@ WAIT_TIME = 1
 LAST_BREAK = 0
 RUNNING = False
 OBJ_ARR = []
+STATUS_FOUND = False
 
 FILE_READ = ""
 LINE_NUM_READ = 0
-COLUMN_NUM_READ = 0
 FILE_WRITE = ""
 LINE_NUM_WRITE = 0
-COLUMN_NUM_WRITE = 0
 
 # Locks
 # TODO: Right now locking mechanism is very coarse grained.  Future work should aim
@@ -35,24 +34,20 @@ def set_trigger():
 
 	global FILE_READ
 	global LINE_NUM_READ
-	global COLUMN_NUM_READ
 	global FILE_WRITE
 	global LINE_NUM_WRITE
-	global COLUMN_NUM_WRITE
 
-	in_read = "util_time.c:135:9"
-	in_write = "util_time.c:165:9"
+	in_read = "mod_mem_cache.c:588:13"
+	in_write = "mod_mem_cache.c:1016:13"
 
 	tokens_read = in_read.split(":")
 	tokens_write = in_write.split(":")
 
 	FILE_READ = tokens_read[0]
 	LINE_NUM_READ = int(tokens_read[1])
-	COLUMN_NUM_READ = int(tokens_read[2])
 
 	FILE_WRITE = tokens_write[0]
 	LINE_NUM_WRITE = int(tokens_write[1])
-	COLUMN_NUM_WRITE = int(tokens_write[2])
 
 	bp_read = target.BreakpointCreateByLocation(FILE_READ, LINE_NUM_READ)
 	bp_write = target.BreakpointCreateByLocation(FILE_WRITE, LINE_NUM_WRITE)
@@ -84,6 +79,9 @@ def timer():
 		process.Continue()
 
 	process_lock.release()
+
+	if STATUS_FOUND:
+		print "### STATUS: MATCH FOUND ###"
 
 	# We don't care about timing drift, we just want timer() to be called periodically
 	threading.Timer(0.1, timer).start()
@@ -159,7 +157,7 @@ def release_bp():
 
 
 # TSAN will sometimes report inaccurate line numbers causing get_addr to fail
-def get_addr(frame, filename, line_num, column_num):
+def get_addr(frame, filename, line_num):
 	filespec = lldb.SBFileSpec(filename, False)
 	if not filespec.IsValid():
 		print " ####### FILESPEC INVALID ####### "
@@ -196,7 +194,7 @@ def get_addr(frame, filename, line_num, column_num):
 		# Remove blank strings again..
 		src_line = filter(None, src_line)
 
-		print "Tokens >>>>>>>>>>>> " + str(src_line)
+#		print "Tokens >>>>>>>>>>>> " + str(src_line)
 
 		# Try to find a variable that matches a token and save its address
 		addrs = []
@@ -204,7 +202,7 @@ def get_addr(frame, filename, line_num, column_num):
 			# obj = frame.EvaluateExpression(token)
 			obj = frame.GetValueForVariablePath(token)
 
-			print token + " => " + str(obj) + " => " + str(obj.GetAddress())
+#			print token + " => " + str(obj) + " => " + str(obj.GetAddress())
 
 			# Very hacky way to verify extracted variable is valid
 			# TODO: Is there a better way to do this?
@@ -259,12 +257,13 @@ def read_callback(frame, bp_loc, dict):
 
 	global OBJ_ARR
 	global RUNNING
+	global STATUS_FOUND
 
 	RUNNING = False
 	thread.Suspend()
 
 	print "READ BP"
-	addrs = get_addr(frame, FILE_READ, LINE_NUM_READ, COLUMN_NUM_READ)
+	addrs = get_addr(frame, FILE_READ, LINE_NUM_READ)
 
 	for obj in addrs:
 		print str(time.time()) + " READ:  [" + str(ID) + "] Checking " + obj + "..."
@@ -282,6 +281,8 @@ def read_callback(frame, bp_loc, dict):
 		print "**************************************************************"
 		print "**************************** HALT ****************************"
 		print "**************************************************************"
+
+		STATUS_FOUND = True
 		process.Stop()
 
 	else:
@@ -313,7 +314,7 @@ def write_callback(frame, bp_loc, dict):
 	thread.Suspend()
 
 	print "WRITE BP"
-	addrs = get_addr(frame, FILE_WRITE, LINE_NUM_WRITE, COLUMN_NUM_WRITE)
+	addrs = get_addr(frame, FILE_WRITE, LINE_NUM_WRITE)
 
 	for obj in addrs:
 		print str(time.time()) + " WRITE: [" + str(ID) + "] Setting  " + obj + "..."
@@ -331,6 +332,8 @@ def write_callback(frame, bp_loc, dict):
 		print "**************************************************************"
 		print "**************************** HALT ****************************"
 		print "**************************************************************"
+
+		STATUS_FOUND = True
 		process.Stop()
 
 	else:
