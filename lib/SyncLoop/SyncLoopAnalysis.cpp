@@ -246,45 +246,43 @@ void SyncLoop::initialize(FuncFileLineList &csinput) {
   return;
 }
 
-bool SyncLoop::checkLoop(Module &M) {
+Loop * SyncLoop::checkLoop(Module &M) {
+  std::set<BasicBlock *> firstInsBBSet;
+  auto cs_itr = readFuncInstList_.front();
+  firstInsBBSet.insert(cs_itr.second->getParent());
   for (auto funciter = M.getFunctionList().begin();
         funciter != M.getFunctionList().end(); funciter++) {
+    Loop * res = NULL;
     if (funciter->isDeclaration())
       continue;
     LoopInfo &LI = getAnalysis<LoopInfo>(*funciter);
-    std::set<BasicBlock *> firstInsBBSet;
-    bool rv = false;
-    for (auto cs_itr : readFuncInstList_) {
-      firstInsBBSet.insert(cs_itr.second->getParent());
-    }
+    // Only need to use one because they are in the same line
     for (LoopInfo::iterator i = LI.begin(), e = LI.end(); i != e; ++i) {
-      rv = iterateLoops(firstInsBBSet, *i, 0);
-      if (rv) {
-        return true;
-      }
+      res = iterateLoops(firstInsBBSet, *i, 0);
+      if (res != NULL)
+        return res;
     }
   }
-  return false;
+  return NULL;
 }
 
-bool SyncLoop::iterateLoops(std::set<BasicBlock *> &firstInsBBSet, Loop *L,
+Loop * SyncLoop::iterateLoops(std::set<BasicBlock *> &firstInsBBSet, Loop *L,
     unsigned nesting) {
-  bool rv = false;
   Loop::block_iterator bb;
   for(bb = L->block_begin(); bb != L->block_end(); ++bb) {
     if (firstInsBBSet.count(*bb)) {
-      return true;
+      return L;
     }
   }
   std::vector<Loop*> subLoops= L->getSubLoops();
   Loop::iterator j, f;
+  Loop * res = NULL;
   for (j = subLoops.begin(), f = subLoops.end(); j != f; ++j) {
-    rv = iterateLoops(firstInsBBSet,*j, nesting + 1);
-    if (rv) {
-      return true;
-    }
+    res = iterateLoops(firstInsBBSet,*j, nesting + 1);
+    if (res != NULL)
+      return res;
   }
-  return false;
+  return NULL;
 }
 
 bool SyncLoop::intraFlowAnalysis(Function * F, Instruction * ins) {
@@ -415,7 +413,7 @@ bool SyncLoop::intraFlowAnalysis(Function * F, Instruction * ins) {
   return rv;
 }
 
-bool SyncLoop::adhocSyncAnalysis(FuncFileLineList &input) {
+bool SyncLoop::adhocSyncAnalysis(FuncFileLineList &input, Loop * iL) {
   for (auto cs_itr : readFuncInstList_) {
     Function *F = cs_itr.first;
     Instruction *I = cs_itr.second;
@@ -424,23 +422,19 @@ bool SyncLoop::adhocSyncAnalysis(FuncFileLineList &input) {
     for (auto itr = orderedcorruptedIR_.begin();
         itr != orderedcorruptedIR_.end(); itr++) {
       if (isa<ICmpInst>(*itr)) {
-        errs() << "==== Branch Statement Found ! ====\n";
+        errs() << "==== Corrupted Branch Statement Found ! ====\n";
         F = dyn_cast<Instruction>(*itr)->getParent()->getParent();
         I = dyn_cast<Instruction>(*itr);
+        printInst(I); errs() << "\n";
         corruptInBr = true;
-        break;
       }
-    }
-    FuncFileLineList::iterator it = input.begin();
-    if (corruptInBr) {
-      BasicBlock * BB = I->getParent();
-      for (succ_iterator SI = succ_begin(BB), E = succ_end(BB); SI != E;
-          ++SI) {
-        LoopInfo &LI = getAnalysis<LoopInfo>(*F);
-        Loop * loop = LI.getLoopFor(I->getParent());
-        if (loop && loop->isLoopExiting(*SI)) {
+    
+      FuncFileLineList::iterator it = input.begin();
+      if (corruptInBr) {
+        BasicBlock * BB = I->getParent();
+        if (iL->isLoopExiting(BB)) {
           errs() << "**************************************************\n";
-          errs() << "                Busy Loop Detected!               \n";
+          errs() << "           Adhoc Synchronization Loop Detected!   \n";
           errs() << "Write Inst ";
           errs() << "(" << std::get<1>(*it) << " : " << std::get<2>(*it) << ") ";
           it++;
@@ -463,7 +457,7 @@ bool SyncLoop::adhocSyncAnalysis(FuncFileLineList &input) {
 }
 
 bool SyncLoop::runOnModule(Module &M) {
-  bool inLoop = false;
+  Loop * inLoop = NULL;
   FuncFileLineList racingLines;
   FuncInstList racingFuncInstList;
   I2I = &getAnalysis<Inst2Int>();
@@ -479,7 +473,7 @@ bool SyncLoop::runOnModule(Module &M) {
   if (inLoop) {
     errs() << "==== First Instruction Is In A Loop ! ====\n";
     errs() << "==== Start Adhoc Synchronization Analysis ====\n";
-    adhocSyncAnalysis(racingLines);
+    adhocSyncAnalysis(racingLines, inLoop);
   }
   return false;
 }
