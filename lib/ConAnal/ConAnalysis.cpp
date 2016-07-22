@@ -37,11 +37,13 @@ static cl::opt<bool> PtrDerefCheck("ptrderef",
     cl::desc("Enable ptr deref check"));
 static cl::opt<bool> DanFuncCheck("danfunc",
     cl::desc("do dangerous function check"));
+static cl::opt<std::string> CorruptedVariable("corruptVar",
+    cl::init("0"),
+    cl::desc("Manually input the corrupted variable"));
 static cl::opt<std::string> RaceReportInput("raceReport",
     cl::desc("race report input file"), cl::Required);
 
 void ConAnalysis::clearClassDataMember() {
-  // Rummor says there will be funky problems if we don't clear these contains.
   ins2int_.clear();
   sourcetoIRmap_.clear();
   corruptedIR_.clear();
@@ -53,15 +55,6 @@ void ConAnalysis::clearClassDataMember() {
   callStackBody_.clear();
   corruptedMap_.clear();
   funcEnterExitValMap_.clear();
-}
-
-bool ConAnalysis::add2CorruptedIR_(Value * v) {
-  if (!corruptedIR_.count(v)) {
-    orderedcorruptedIR_.push_back(v);
-    corruptedIR_.insert(v);
-    return true;
-  }
-  return false;
 }
 
 const Function* ConAnalysis::findEnclosingFunc(const Value* V) {
@@ -184,11 +177,12 @@ void ConAnalysis::initializeCallStack(FuncFileLineList &csinput) {
              << " No matching instructions.\n";
       abort();
     }
+    bool firstInsIsCall = false;
     for (auto listit = insList.begin(); listit != insList.end(); ++listit) {
       // This makes sure that other than the first one, all the other callstack
       // layers are filled with call instruction.
       if (isa<GetElementPtrInst>(*listit)) {
-        if (cs_it != csinput.begin())
+        if (cs_it != csinput.begin() || firstInsIsCall)
           continue;
         // This flag checks if the corrupted variable is already added
         // to the head.
@@ -219,6 +213,7 @@ void ConAnalysis::initializeCallStack(FuncFileLineList &csinput) {
         if (cs_it == csinput.begin() && listit == insList.begin()) {
           errs() << "Warning: Call Inst %" << ins2int_[*listit]
                  << " is the first one in the call stack!\n";
+          firstInsIsCall = true;
           continue;
         }
         Function * func = &*(((*listit)->getParent())->getParent());
@@ -227,7 +222,7 @@ void ConAnalysis::initializeCallStack(FuncFileLineList &csinput) {
         callStackBody_.push_back(std::make_pair(&*func, *listit));
         break;
       } else {
-        if (cs_it != csinput.begin())
+        if (cs_it != csinput.begin() || firstInsIsCall)
           continue;
         Function * func = &*(((*listit)->getParent())->getParent());
         bool flagAlreadyAddedVar = false;
@@ -266,6 +261,21 @@ void ConAnalysis::initializeCallStack(FuncFileLineList &csinput) {
     DEBUG(errs() << "\n");
   }
   errs() << "\n";
+  // Overwrite callStackHead if there is manual input
+  uint64_t var = std::stoi(CorruptedVariable);
+  if (var != 0) {
+    for (auto it = ins2int_.begin(); it != ins2int_.end(); ++it) {
+      if (it->second == var) {
+        Function * func = &*(((it->first)->getParent())->getParent());
+        callStackHead_.clear();
+        callStackHead_.push_back(std::make_pair(&*func, it->first));
+        (it->first)->print(errs());errs() << "\n";
+        errs() << "Corrupted variable is manually inputed."
+               << "The value is " << var << "\n";
+        break;
+      }
+    }
+  }
   return;
 }
 
@@ -320,7 +330,7 @@ bool ConAnalysis::runOnModule(Module &M) {
   errs() << "       Start ConAnalysis Pass          \n";
   errs() << "---------------------------------------\n";
   createMaps(M);
-#ifdef DEBUG_TYPE 
+#ifdef DEBUG_TYPE
   printMap(M);
 #endif
   parseInput(RaceReportInput, raceReport);
@@ -459,20 +469,6 @@ bool ConAnalysis::getCorruptedIRs(Module &M, DOL &labels, bool inLoop,
       bool corruptInBr = false;
       for (auto itr = orderedcorruptedIR_.begin();
           itr != orderedcorruptedIR_.end(); itr++) {
-        //if (isa<BranchInst>(*itr)) {
-          //Instruction * brIns = dyn_cast<Instruction>(*itr);
-          //LoopInfo &LI = getAnalysis<LoopInfo>(*F);
-          //BasicBlock * brBB = brIns->getParent();
-          //if ((LI.getLoopFor(brBB))->isLoopExiting(brBB)) {
-              //errs() << "**************************************************\n";
-              //errs() << "                Busy Loop Detected!               \n";
-              //errs() << "%" << ins2int_[I] <<
-                //" may have the control of breaking out a loop\n";
-              //errs() << "**************************************************\n";
-              //errs() << "\n";
-              //break;
-          //}
-        //}
         if (isa<ICmpInst>(*itr)) {
           DEBUG(errs() << "==== if statement found ! ====\n");
           F = dyn_cast<Instruction>(*itr)->getParent()->getParent();
@@ -736,7 +732,7 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
       // we couldn't obtain its function body(external function), we'll treat
       // the return value of the call instruction as corrupted.
       if (callee->begin() == callee->end() && paramsCorrupted) {
-        add2CorruptedIR_(&*I);
+        add2CrptList(&*I);
         continue;
       }
       if (funcEnterExitValMap_.count(callee) != 0) {

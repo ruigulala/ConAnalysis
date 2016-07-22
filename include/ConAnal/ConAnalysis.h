@@ -80,7 +80,7 @@ class ConAnalysis : public ModulePass {
     }
 
  private:
-    std::map<Instruction *, int> ins2int_;
+    std::map<Instruction *, uint64_t> ins2int_;
     uint64_t ins_count_ = 1;
     bool controlDependent = false;
     /// <fileName, lineNum> -> list<Instruction *>
@@ -95,12 +95,11 @@ class ConAnalysis : public ModulePass {
     std::map<Function *, EnterExitVal> funcEnterExitValMap_;
     std::map<Function *, BB2SetMap> dominatorMap_;
     std::list<Value *> orderedcorruptedIR_;
-    std::list<std::pair<Function *, Instruction *>> callStack_;
-    std::list<std::pair<Function *, Instruction *>> callStackHead_;
-    std::list<std::pair<Function *, Instruction *>> callStackBody_;
+    FuncInstList callStack_;
+    FuncInstList callStackHead_;
+    FuncInstList callStackBody_;
     std::map<Value *, std::list<Value *>> corruptedMap_;
 
-    virtual bool add2CorruptedIR_(Value * v);
     /// Avoid funky problems of uninitialized data member
     void clearClassDataMember();
     ///

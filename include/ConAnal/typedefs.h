@@ -20,13 +20,17 @@ namespace ConAnal {
 /* <functionName, fileName, lineNum> */
 typedef std::tuple<std::string, std::string, uint32_t> FuncFileLine;
 typedef std::pair<std::string, uint32_t> FileLine;
+typedef std::pair<Function *, Instruction *> FuncInst;
 typedef std::list<FuncFileLine> FuncFileLineList;
-typedef std::map<FileLine, bool> FileLineMap;
 typedef std::list<Instruction *> InstructionList;
+typedef std::list<std::pair<Function *, Instruction *>> FuncInstList;
 typedef std::set<std::string> StrSet;
 typedef std::set<Function *> FuncSet;
 typedef std::map<uint32_t, Value *> CorruptedArgs;
 typedef std::map<BasicBlock *, std::set<BasicBlock *>> BB2SetMap;
+typedef std::map<FileLine, bool> FileLineMap;
+typedef std::map<Instruction *, uint64_t> Inst2IntMap;
+typedef std::map<std::pair<std::string, uint32_t>, InstructionList> FileLine2InstListMap;
 
 typedef struct {
   char fileName[200];
