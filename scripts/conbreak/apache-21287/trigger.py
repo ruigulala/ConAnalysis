@@ -8,7 +8,7 @@ import threading
 
 # USER SET GLOBAL VARIABLES
 # Stable state wait time (in seconds, ie. 0.1 = 100ms), default = 1
-WAIT_TIME = 1
+WAIT_TIME = 0.1
 
 # DO NOT CHANGE
 LAST_BREAK = 0
@@ -28,7 +28,7 @@ timer_lock = threading.Lock()
 process_lock = threading.Lock()
 
 
-def set_trigger():
+def set_trigger(in_read, in_write):
 	print "Setting breakpoints..."
 	target = lldb.debugger.GetSelectedTarget()
 
@@ -37,8 +37,8 @@ def set_trigger():
 	global FILE_WRITE
 	global LINE_NUM_WRITE
 
-	in_read = "mod_mem_cache.c:588:13"
-	in_write = "mod_mem_cache.c:1016:13"
+#	in_read = "apr_strings.c:114:11"
+#	in_write = "mod_mem_cache.c:889:42"
 
 	tokens_read = in_read.split(":")
 	tokens_write = in_write.split(":")
@@ -137,15 +137,12 @@ def release_bp():
 	if obj_arr_len == 0:
 		return
 
-	# Make sure process is stopped before modifying thread states
-
 	rand = random.randrange(0, obj_arr_len)
 	thread = process.GetThreadByID(OBJ_ARR[rand][-1])
 
-	#process.SetSelectedThreadByID(thread.GetThreadID())
-
 	print str(time.time()) + " >>>>>>>>>> INFO: Releasing thread " + str(thread.GetThreadID())
 
+	# Make sure process is stopped before modifying thread states
 	if not process.is_stopped:
 		process.Stop()
 
@@ -262,7 +259,6 @@ def read_callback(frame, bp_loc, dict):
 	RUNNING = False
 	thread.Suspend()
 
-	print "READ BP"
 	addrs = get_addr(frame, FILE_READ, LINE_NUM_READ)
 
 	for obj in addrs:
@@ -313,7 +309,6 @@ def write_callback(frame, bp_loc, dict):
 	RUNNING = False
 	thread.Suspend()
 
-	print "WRITE BP"
 	addrs = get_addr(frame, FILE_WRITE, LINE_NUM_WRITE)
 
 	for obj in addrs:
@@ -351,12 +346,39 @@ def write_callback(frame, bp_loc, dict):
 	process_lock.release()
 
 
-def __lldb_init_module(debugger, dict):
-	print "Setting trigger..."
-	set_trigger()
+# def __lldb_init_module(debugger, dict):
+#	print "Setting trigger..."
+#	set_trigger()
+#
+#	# TODO: Let user specify program flags
+#	debugger.HandleCommand('run -k start -X')
 
-	# TODO: Let user specify program flags
-	debugger.HandleCommand('run -k start -X')
+
+# Initialization and whatnot
+def main():
+	if len(sys.argv) < 4:
+		print ( "Usage: python2.7 trigger.py [BP1 <file:lineno>] [BP2 <file:lineno>] "
+			    "<executable> [args <arg1> <arg2> ...]" )
+		exit()
+
+	exe = sys.argv[4]
+	debugger = lldb.SBDebugger.Create()
+	target = debugger.CreateTargetWithFileAndArch(exe, lldb.LLDB_ARCH_DEFAULT)
+
+	if target:
+		set_trigger()
+	else:
+		print "### ERROR: Unable to create target ###"
+		exit()
+
+	# Start execution
+	target.LaunchSimple(sys.argv[5:], None, os.getcwd())
+
+
+if __name__ == "__main__":
+    main()
+
+
 
 
 
