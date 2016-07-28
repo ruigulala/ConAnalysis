@@ -40,7 +40,6 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/CallGraph.h"
-#include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
@@ -75,7 +74,6 @@ class ConAnalysis : public ModulePass {
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.setPreservesAll();
       AU.addRequired<DOL>();
-      AU.addRequired<LoopInfo>();
       AU.addRequired<ControlDependenceGraphs>();
     }
 
@@ -128,16 +126,13 @@ class ConAnalysis : public ModulePass {
     /// The second map is:
     /// <FileName, lineNum> -> Instruction
     virtual bool createMaps(Module &M);
-    virtual bool iterateLoops(std::set<BasicBlock *> &firstInsBBSet, Loop * L,
-        unsigned nesting);
-    virtual bool checkLoop(Module &M);
     /// 
     bool printMappedInstruction(Value * v);
     /// This method prints all the instructions with their outter BasicBlock
     /// and Function information.
     virtual bool printMap(Module &M);
     ///
-    virtual bool getCorruptedIRs(Module &M, DOL &labels, bool inLoop,
+    virtual bool getCorruptedIRs(Module &M, DOL &labels,
         ControlDependenceGraphs &CDGs);
     ///
     virtual bool intraDataflowAnalysis(Function *, Instruction *,

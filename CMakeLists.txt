@@ -11,8 +11,8 @@ include_directories(include)
 add_subdirectory(lib/Misc/Inst2Int)
 add_subdirectory(lib/CDG)
 add_subdirectory(lib/SyncLoop)
-#add_subdirectory(lib/DOL)
-#add_subdirectory(lib/ConAnal)
+add_subdirectory(lib/DOL)
+add_subdirectory(lib/ConAnal)
 add_subdirectory(TESTS/libsafe-cve-1125) # real exploit exists
 add_subdirectory(TESTS/libvirt-cve-1447) # real exploit exists
 add_subdirectory(TESTS/apache-21287) # concurrency bug

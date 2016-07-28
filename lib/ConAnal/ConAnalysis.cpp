@@ -279,49 +279,7 @@ void ConAnalysis::initializeCallStack(FuncFileLineList &csinput) {
   return;
 }
 
-bool ConAnalysis::iterateLoops(std::set<BasicBlock *> &firstInsBBSet, Loop *L,
-    unsigned nesting) {
-  bool rv = false;
-  Loop::block_iterator bb;
-  for(bb = L->block_begin(); bb != L->block_end(); ++bb) {
-    if (firstInsBBSet.count(*bb)) {
-      return true;
-    }
-  }
-  std::vector<Loop*> subLoops= L->getSubLoops();
-  Loop::iterator j, f;
-  for (j = subLoops.begin(), f = subLoops.end(); j != f; ++j) {
-    rv = iterateLoops(firstInsBBSet,*j, nesting + 1);
-    if (rv) {
-      return true;
-    }
-  }
-  return false;
-}
-
-bool ConAnalysis::checkLoop(Module &M) {
-  for (auto funciter = M.getFunctionList().begin();
-        funciter != M.getFunctionList().end(); funciter++) {
-    if (funciter->isDeclaration())
-      continue;
-    LoopInfo &LI = getAnalysis<LoopInfo>(*funciter);
-    std::set<BasicBlock *> firstInsBBSet;
-    bool rv = false;
-    for (auto cs_itr : callStackHead_) {
-      firstInsBBSet.insert(cs_itr.second->getParent());
-    }
-    for (LoopInfo::iterator i = LI.begin(), e = LI.end(); i != e; ++i) {
-      rv = iterateLoops(firstInsBBSet, *i, 0);
-      if (rv) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
 bool ConAnalysis::runOnModule(Module &M) {
-  bool inLoop = false;
   clearClassDataMember();
   DOL &labels = getAnalysis<DOL>();
   ControlDependenceGraphs &CDGs = getAnalysis<ControlDependenceGraphs>();
@@ -335,10 +293,7 @@ bool ConAnalysis::runOnModule(Module &M) {
 #endif
   parseInput(RaceReportInput, raceReport);
   initializeCallStack(raceReport);
-  inLoop = checkLoop(M);
-  if (inLoop)
-    errs() << "==== First Instruction Is In A Loop ! ====\n";
-  getCorruptedIRs(M, labels, inLoop, CDGs);
+  getCorruptedIRs(M, labels, CDGs);
   return false;
 }
 
@@ -427,7 +382,7 @@ bool ConAnalysis::printMap(Module &M) {
   return false;
 }
 
-bool ConAnalysis::getCorruptedIRs(Module &M, DOL &labels, bool inLoop,
+bool ConAnalysis::getCorruptedIRs(Module &M, DOL &labels,
     ControlDependenceGraphs &CDGs) {
   DEBUG(errs() << "---- Getting Corrupted LLVM IRs ----\n");
   assert(callStackHead_.size() != 0 && "Error: callStackHead_ is empty!");
@@ -461,41 +416,6 @@ bool ConAnalysis::getCorruptedIRs(Module &M, DOL &labels, bool inLoop,
     errs() << "---- Part 1: Dataflow Result ---- \n";
     printList(orderedcorruptedIR_);
     errs() << "\n";
-
-    // Check whether the corrupted variable is contained within a br instruction
-    if (inLoop) {
-      Function *F = cs_itr.first;
-      Instruction *I = cs_itr.second;
-      bool corruptInBr = false;
-      for (auto itr = orderedcorruptedIR_.begin();
-          itr != orderedcorruptedIR_.end(); itr++) {
-        if (isa<ICmpInst>(*itr)) {
-          DEBUG(errs() << "==== if statement found ! ====\n");
-          F = dyn_cast<Instruction>(*itr)->getParent()->getParent();
-          I = dyn_cast<Instruction>(*itr);
-          corruptInBr = true;
-          break;
-        }
-      }
-
-      if (corruptInBr) {
-        BasicBlock * BB = I->getParent();
-        for (succ_iterator SI = succ_begin(BB), E = succ_end(BB); SI != E;
-            ++SI) {
-          LoopInfo &LI = getAnalysis<LoopInfo>(*F);
-          Loop * loop = LI.getLoopFor(I->getParent());
-          if (loop && loop->isLoopExiting(*SI)) {
-              errs() << "**************************************************\n";
-              errs() << "                Busy Loop Detected!               \n";
-              errs() << "%" << ins2int_[I] <<
-                " may have the control of breaking out a loop\n";
-              errs() << "**************************************************\n";
-              errs() << "\n";
-              break;
-          }
-        }
-      }
-    }
 
     std::set<Function *> corruptedIRFuncSet;
     for (auto IR = corruptedIR_.begin(); IR != corruptedIR_.end(); IR++) {
