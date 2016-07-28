@@ -46,6 +46,7 @@
 
 #include "ConAnal/DangerOpLabel.h"
 #include "ConAnal/ControlDependenceGraph.h"
+#include "ConAnal/Inst2Int.h"
 #include "ConAnal/typedefs.h"
 
 using namespace llvm;
@@ -73,16 +74,15 @@ class ConAnalysis : public ModulePass {
     // We don't modify the program, so we preserve all analyses
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.setPreservesAll();
+      AU.addRequired<Inst2Int>();
       AU.addRequired<DOL>();
       AU.addRequired<ControlDependenceGraphs>();
     }
 
  private:
-    std::map<Instruction *, uint64_t> ins2int_;
-    uint64_t ins_count_ = 1;
+    Inst2Int *I2I = nullptr;
+    ControlDependenceGraphs *CDGs = nullptr;
     bool controlDependent = false;
-    /// <fileName, lineNum> -> list<Instruction *>
-    std::map<std::pair<std::string, uint32_t>, InstructionList> sourcetoIRmap_;
     std::set<Value *> corruptedIR_;
     std::list<Instruction *> corruptedBr_;
     std::list<Instruction *> corruptedCallIns_;
@@ -120,24 +120,13 @@ class ConAnalysis : public ModulePass {
     void initializeCallStack(FuncFileLineList &csInput);
     ///
     virtual bool runOnModule(Module &M);
-    /// This method create two maps for future quick search.
-    /// The first map is:
-    /// Instruction -> Number
-    /// The second map is:
-    /// <FileName, lineNum> -> Instruction
-    virtual bool createMaps(Module &M);
-    /// 
-    bool printMappedInstruction(Value * v);
-    /// This method prints all the instructions with their outter BasicBlock
-    /// and Function information.
-    virtual bool printMap(Module &M);
     ///
     virtual bool getCorruptedIRs(Module &M, DOL &labels,
-        ControlDependenceGraphs &CDGs);
+        ControlDependenceGraphs * CDGs);
     ///
     virtual bool intraDataflowAnalysis(Function *, Instruction *,
                                        CorruptedArgs &corruptedparams,
-                                       ControlDependenceGraphs &CDGs,
+                                       ControlDependenceGraphs * CDGs,
                                        bool ctrlDep, DOL &labels);
     virtual uint32_t printInterCtrlDepResult(
         std::map<FileLine, std::list<Value *>> resultMap);
