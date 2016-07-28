@@ -290,7 +290,6 @@ bool SyncLoop::intraFlowAnalysis(Function * F, Instruction * ins) {
   std::list<Instruction *> localCorruptedBr_;
   auto I = inst_begin(F);
   Inst2IntMap & ins2int = I2I->getInst2IntMap();
-
   for (; I != inst_end(F); ++I) {
     if (&*I == &*ins) {
       if (!corruptedIR_.count(&*I)) {
@@ -304,7 +303,6 @@ bool SyncLoop::intraFlowAnalysis(Function * F, Instruction * ins) {
     }
   }
   assert(I != inst_end(F) && "Couldn't find callstack instruction.");
-
   // Obtain the Control Dependence Graph of the current function
   bool noGraph = false;
   if (CDG->graphs.find(F) == CDG->graphs.end())
@@ -315,7 +313,6 @@ bool SyncLoop::intraFlowAnalysis(Function * F, Instruction * ins) {
     DEBUG(errs() << "Couldn't obtain the source code of function \""
         << F->getName() << "\"\n");
   }
-
   // Forward taint analysis on each instruction
   for (; I != inst_end(F); ++I) {
     // Check if the current instruction is control dependent on any corrupted
@@ -330,7 +327,6 @@ bool SyncLoop::intraFlowAnalysis(Function * F, Instruction * ins) {
         break;
       }
     }
-
     if (isa<GetElementPtrInst>(&*I)) {
       int op_ii = I->getNumOperands();
       if (corruptedPtr_.count(I->getOperand(0))) {
@@ -418,9 +414,9 @@ bool SyncLoop::adhocSyncAnalysis(FuncFileLineList &input, Loop * iL) {
     Function *F = cs_itr.first;
     Instruction *I = cs_itr.second;
     intraFlowAnalysis(F, I);
-    bool corruptInBr = false;
     for (auto itr = orderedcorruptedIR_.begin();
         itr != orderedcorruptedIR_.end(); itr++) {
+      bool corruptInBr = false;
       if (isa<ICmpInst>(*itr)) {
         errs() << "==== Corrupted Branch Statement Found ! ====\n";
         F = dyn_cast<Instruction>(*itr)->getParent()->getParent();
