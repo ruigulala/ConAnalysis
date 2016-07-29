@@ -86,13 +86,13 @@ class SyncLoop : public ModulePass {
     std::list<Instruction *> corruptedBr_;
 
     bool add2CrptList(Value * corruptedVal);
-    bool checkLoop(Module &M);
-    bool iterateLoops(std::set<BasicBlock *> &firstInsBBSet, Loop *L,
+    Loop * checkLoop(Module &M);
+    Loop * iterateLoops(std::set<BasicBlock *> &firstInsBBSet, Loop *L,
         unsigned nesting);
     void parseInput(std::string inputfile, FuncFileLineList &csinput);
     void initialize(FuncFileLineList &csInput);
     bool intraFlowAnalysis(Function * F, Instruction * ins);
-    bool adhocSyncAnalysis(FuncFileLineList &input);
+    bool adhocSyncAnalysis(FuncFileLineList &input, Loop * iL);
 };
 }// namespace ConAnal
 #endif  // INCLUDE_CONANAL_SYNCLOOP_H_

@@ -6,7 +6,7 @@
 // License. See LICENSE.TXT for details.
 //
 //===----------------------------------------------------------------------===//
-// Copyright (c) 2015 Columbia University. All rights reserved.
+// Copyright (c) 2016 Columbia University. All rights reserved.
 // This file is a skeleton of an implementation for the ConAnalysis
 // pass of Columbia University in the City of New York. For this program,
 // our goal is to find those particular concurrency bugs that will make
@@ -44,8 +44,6 @@ static cl::opt<std::string> RaceReportInput("raceReport",
     cl::desc("race report input file"), cl::Required);
 
 void ConAnalysis::clearClassDataMember() {
-  ins2int_.clear();
-  sourcetoIRmap_.clear();
   corruptedIR_.clear();
   finishedVars_.clear();
   corruptedPtr_.clear();
@@ -93,17 +91,18 @@ StringRef ConAnalysis::getOriginalName(const Value* V) {
 }
 
 void ConAnalysis::printList(std::list<Value *> &inputset) {
+  Inst2IntMap & ins2int = I2I->getInst2IntMap();
   errs() << "[ ";
   for (auto& iter : inputset) {
     if (isa<Instruction>(iter)) {
-      errs() << ins2int_[cast<Instruction>(iter)] << " ";
+      errs() << ins2int[cast<Instruction>(iter)] << " ";
     } else {
       errs() << iter->getName() << " ";
     }
   }
   errs() << "]\n";
   for (auto& iter : inputset) {
-    printMappedInstruction(iter); 
+    I2I->printMappedInstruction(iter);
   }
 }
 
@@ -151,19 +150,21 @@ void ConAnalysis::parseInput(std::string inputfile, FuncFileLineList &csinput) {
 }
 
 void ConAnalysis::initializeCallStack(FuncFileLineList &csinput) {
+  Inst2IntMap & ins2int = I2I->getInst2IntMap();
+  FileLine2InstListMap & sourcetoIRmap = I2I->getFileLine2InstListMap();
   errs() << "---- Replaying Call Stack Input ----\n";
   for (auto cs_it = csinput.begin(); cs_it != csinput.end(); ++cs_it) {
     std::string filename = std::get<1>(*cs_it);
     uint32_t line = std::get<2>(*cs_it);
     errs() << "(" << filename << " : " << line << ")\n";
-    auto mapitr = sourcetoIRmap_.find(std::make_pair(filename, line));
-    if (mapitr == sourcetoIRmap_.end()) {
+    auto mapitr = sourcetoIRmap.find(std::make_pair(filename, line));
+    if (mapitr == sourcetoIRmap.end()) {
       // It's tolerable if some instructions in certain functions are missing
       // due to some library linking issue. However, it doesn't make any 
       // sense if the corrupted variable instruction is missing.
       errs() << "ERROR: <" << std::get<1>(*cs_it) << " "
              << std::get<2>(*cs_it) << ">"
-             << " sourcetoIRmap_ look up failed.\n";
+             << " sourcetoIRmap look up failed.\n";
       if (cs_it == csinput.begin()) {
         errs() << "Fisrt instruction failed, aborting...\n";
         abort();
@@ -211,7 +212,7 @@ void ConAnalysis::initializeCallStack(FuncFileLineList &csinput) {
             continue;
         }
         if (cs_it == csinput.begin() && listit == insList.begin()) {
-          errs() << "Warning: Call Inst %" << ins2int_[*listit]
+          errs() << "Warning: Call Inst %" << ins2int[*listit]
                  << " is the first one in the call stack!\n";
           firstInsIsCall = true;
           continue;
@@ -264,7 +265,7 @@ void ConAnalysis::initializeCallStack(FuncFileLineList &csinput) {
   // Overwrite callStackHead if there is manual input
   uint64_t var = std::stoi(CorruptedVariable);
   if (var != 0) {
-    for (auto it = ins2int_.begin(); it != ins2int_.end(); ++it) {
+    for (auto it = ins2int.begin(); it != ins2int.end(); ++it) {
       if (it->second == var) {
         Function * func = &*(((it->first)->getParent())->getParent());
         callStackHead_.clear();
@@ -279,156 +280,25 @@ void ConAnalysis::initializeCallStack(FuncFileLineList &csinput) {
   return;
 }
 
-bool ConAnalysis::iterateLoops(std::set<BasicBlock *> &firstInsBBSet, Loop *L,
-    unsigned nesting) {
-  bool rv = false;
-  Loop::block_iterator bb;
-  for(bb = L->block_begin(); bb != L->block_end(); ++bb) {
-    if (firstInsBBSet.count(*bb)) {
-      return true;
-    }
-  }
-  std::vector<Loop*> subLoops= L->getSubLoops();
-  Loop::iterator j, f;
-  for (j = subLoops.begin(), f = subLoops.end(); j != f; ++j) {
-    rv = iterateLoops(firstInsBBSet,*j, nesting + 1);
-    if (rv) {
-      return true;
-    }
-  }
-  return false;
-}
-
-bool ConAnalysis::checkLoop(Module &M) {
-  for (auto funciter = M.getFunctionList().begin();
-        funciter != M.getFunctionList().end(); funciter++) {
-    if (funciter->isDeclaration())
-      continue;
-    LoopInfo &LI = getAnalysis<LoopInfo>(*funciter);
-    std::set<BasicBlock *> firstInsBBSet;
-    bool rv = false;
-    for (auto cs_itr : callStackHead_) {
-      firstInsBBSet.insert(cs_itr.second->getParent());
-    }
-    for (LoopInfo::iterator i = LI.begin(), e = LI.end(); i != e; ++i) {
-      rv = iterateLoops(firstInsBBSet, *i, 0);
-      if (rv) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
 bool ConAnalysis::runOnModule(Module &M) {
-  bool inLoop = false;
   clearClassDataMember();
+  I2I = &getAnalysis<Inst2Int>();
+  CDGs = &getAnalysis<ControlDependenceGraphs>();
   DOL &labels = getAnalysis<DOL>();
-  ControlDependenceGraphs &CDGs = getAnalysis<ControlDependenceGraphs>();
   FuncFileLineList raceReport;
   errs() << "---------------------------------------\n";
   errs() << "       Start ConAnalysis Pass          \n";
   errs() << "---------------------------------------\n";
-  createMaps(M);
 #ifdef DEBUG_TYPE
-  printMap(M);
+  I2I->printMap(M);
 #endif
   parseInput(RaceReportInput, raceReport);
   initializeCallStack(raceReport);
-  inLoop = checkLoop(M);
-  if (inLoop)
-    errs() << "==== First Instruction Is In A Loop ! ====\n";
-  getCorruptedIRs(M, labels, inLoop, CDGs);
+  getCorruptedIRs(M, labels);
   return false;
 }
 
-bool ConAnalysis::createMaps(Module &M) {
-  bool rv = true;
-  for (auto funciter = M.getFunctionList().begin();
-      funciter != M.getFunctionList().end(); funciter++) {
-    Function *F = funciter;
-    for (auto I = inst_begin(F), E = inst_end(F); I != E; ++I) {
-      ins2int_[&(*I)] = ins_count_++;
-      if (MDNode *N = I->getMetadata("dbg")) {
-        DILocation Loc(N);
-        uint32_t line = Loc.getLineNumber();
-        std::string file = Loc.getFilename().str();
-        file = file.substr(file.find_last_of("\\/") + 1);
-        sourcetoIRmap_[std::make_pair(file, line)].push_back(&*I);
-      } else {
-        rv = false; 
-        // There might be a lot of generated LLVM IRs couldn't map to any
-        // line of the source code.
-        //errs() << "Warning: Couldn't dbg Metadata for LLVM IR\n";
-        //I->print(errs()); errs() << "\n";
-        if (isa<PHINode>(&*I) || isa<AllocaInst>(&*I) || isa<BranchInst>(&*I)) {
-        } else if (isa<CallInst>(&*I) || isa<InvokeInst>(&*I)) {
-        }
-      }
-    }
-  }
-  return rv;
-}
-
-bool ConAnalysis::printMappedInstruction(Value * v) {
-  if (isa<Instruction>(v)) {
-    Instruction * i = dyn_cast<Instruction>(v);
-    errs() << "%" << ins2int_[i] << ":\t";
-    errs() << Instruction::getOpcodeName(i->getOpcode()) << "\t";
-    for (uint32_t op_i = 0; op_i < i->getNumOperands(); op_i++) {
-      Value * v = i->getOperand(op_i);
-      if (isa<Instruction>(v)) {
-        errs() << "%" << ins2int_[cast<Instruction>(v)] << " ";
-      } else if (v->hasName()) {
-        errs() << v->getName() << " ";
-      } else {
-        errs() << "XXX ";
-      }
-    }
-    if (MDNode *N = dyn_cast<Instruction>(v)->getMetadata("dbg")) {
-      DILocation Loc(N);
-      std::string fileName = Loc.getFilename().str();
-      errs() << " Location: " << "("
-          << fileName.substr(fileName.find_last_of("\\/") + 1) << ":"
-          << Loc.getLineNumber() << ")";
-    }
-  } else {
-    errs() << "Function args: " << v->getName();
-  }
-  
-  errs() << "\n";
-  return true;
-}
-
-bool ConAnalysis::printMap(Module &M) {
-  for (auto funcIter = M.getFunctionList().begin();
-      funcIter != M.getFunctionList().end(); funcIter++) {
-    Function *F = funcIter;
-    DEBUG(errs() << "\nFUNCTION " << F->getName().str() << "\n");
-    for (auto blk = F->begin(); blk != F->end(); ++blk) {
-      DEBUG(errs() << "\nBASIC BLOCK " << blk->getName() << "\n");
-      for (auto i = blk->begin(); i != blk->end(); ++i) {
-        DEBUG(errs() << "%" << ins2int_[i] << ":\t");
-        DEBUG(errs() << Instruction::getOpcodeName(i->getOpcode()) << "\t");
-        for (uint32_t op_i = 0; op_i < i->getNumOperands(); op_i++) {
-          Value * v = i->getOperand(op_i);
-          if (isa<Instruction>(v)) {
-            DEBUG(errs() << "%" << ins2int_[cast<Instruction>(v)] << " ");
-          } else if (v->hasName()) {
-            DEBUG(errs() << v->getName() << " ");
-          } else {
-            DEBUG(errs() << "XXX ");
-          }
-        }
-        DEBUG(errs() << "\n");
-      }
-    }
-  }
-  return false;
-}
-
-bool ConAnalysis::getCorruptedIRs(Module &M, DOL &labels, bool inLoop,
-    ControlDependenceGraphs &CDGs) {
+bool ConAnalysis::getCorruptedIRs(Module &M, DOL &labels) {
   DEBUG(errs() << "---- Getting Corrupted LLVM IRs ----\n");
   assert(callStackHead_.size() != 0 && "Error: callStackHead_ is empty!");
   for (auto cs_itr : callStackHead_) {
@@ -448,7 +318,7 @@ bool ConAnalysis::getCorruptedIRs(Module &M, DOL &labels, bool inLoop,
       DEBUG(errs() << "Original Callstack: Go into \"" << loc.first->getName()
              << "\"\n");
       bool addFuncRet = false;
-      addFuncRet = intraDataflowAnalysis(loc.first, loc.second, coparams, CDGs,
+      addFuncRet = intraDataflowAnalysis(loc.first, loc.second, coparams,
           false, labels);
       DEBUG(errs() << "Callstack POP " << loc.first->getName() << "\n");
       callStack_.pop_front();
@@ -461,41 +331,6 @@ bool ConAnalysis::getCorruptedIRs(Module &M, DOL &labels, bool inLoop,
     errs() << "---- Part 1: Dataflow Result ---- \n";
     printList(orderedcorruptedIR_);
     errs() << "\n";
-
-    // Check whether the corrupted variable is contained within a br instruction
-    if (inLoop) {
-      Function *F = cs_itr.first;
-      Instruction *I = cs_itr.second;
-      bool corruptInBr = false;
-      for (auto itr = orderedcorruptedIR_.begin();
-          itr != orderedcorruptedIR_.end(); itr++) {
-        if (isa<ICmpInst>(*itr)) {
-          DEBUG(errs() << "==== if statement found ! ====\n");
-          F = dyn_cast<Instruction>(*itr)->getParent()->getParent();
-          I = dyn_cast<Instruction>(*itr);
-          corruptInBr = true;
-          break;
-        }
-      }
-
-      if (corruptInBr) {
-        BasicBlock * BB = I->getParent();
-        for (succ_iterator SI = succ_begin(BB), E = succ_end(BB); SI != E;
-            ++SI) {
-          LoopInfo &LI = getAnalysis<LoopInfo>(*F);
-          Loop * loop = LI.getLoopFor(I->getParent());
-          if (loop && loop->isLoopExiting(*SI)) {
-              errs() << "**************************************************\n";
-              errs() << "                Busy Loop Detected!               \n";
-              errs() << "%" << ins2int_[I] <<
-                " may have the control of breaking out a loop\n";
-              errs() << "**************************************************\n";
-              errs() << "\n";
-              break;
-          }
-        }
-      }
-    }
 
     std::set<Function *> corruptedIRFuncSet;
     for (auto IR = corruptedIR_.begin(); IR != corruptedIR_.end(); IR++) {
@@ -535,8 +370,8 @@ bool ConAnalysis::getCorruptedIRs(Module &M, DOL &labels, bool inLoop,
 
 bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
                                         CorruptedArgs &corruptedparams,
-                                        ControlDependenceGraphs &CDGs,
                                         bool ctrlDep, DOL &labels) {
+  Inst2IntMap & ins2int = I2I->getInst2IntMap();
   bool rv = false;
   bool ctrlDepWithinCurFunc = false;
   std::list<Instruction *> localCorruptedBr_;
@@ -552,7 +387,7 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
             orderedcorruptedIR_.push_back(&*I);
             corruptedIR_.insert(&*I);
             DEBUG(errs() << "Adding corrupted variable: ");
-            DEBUG(errs() << "%" << ins2int_[&*I] << "\n");
+            DEBUG(errs() << "%" << ins2int[&*I] << "\n");
             if (isa<GetElementPtrInst>(&*I)) {
               int op_num = I->getNumOperands();
               GepIdxStruct * gep_idx = reinterpret_cast<GepIdxStruct *>
@@ -583,9 +418,9 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
 
   // Obtain the Control Dependence Graph of the current function
   bool noGraph = false;
-  if (CDGs.graphs.find(F) == CDGs.graphs.end())
+  if (CDGs->graphs.find(F) == CDGs->graphs.end())
     noGraph = true;
-  ControlDependenceGraphBase &cdgBase = CDGs[F];
+  ControlDependenceGraphBase &cdgBase = (*CDGs)[F];
 
   if (I == inst_end(F)) {
     DEBUG(errs() << "Couldn't obtain the source code of function \""
@@ -654,8 +489,8 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
               BasicBlock * brBB = br->getParent();
               if (callBB->getParent() != brBB->getParent())
                 continue;
-              if (CDGs.graphs.find(callBB->getParent()) != CDGs.graphs.end()) {
-                ControlDependenceGraphBase &cdg = CDGs[callBB->getParent()];
+              if (CDGs->graphs.find(callBB->getParent()) != CDGs->graphs.end()) {
+                ControlDependenceGraphBase &cdg = (*CDGs)[callBB->getParent()];
                 if (cdg.influences(brBB, callBB)) {
                   bool found = (std::find(ctrlDepBrs.begin(),
                     ctrlDepBrs.end(), br) != ctrlDepBrs.end());
@@ -674,8 +509,8 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
               BasicBlock * brBB = br->getParent();
               if (callBB->getParent() != brBB->getParent())
                 continue;
-              if (CDGs.graphs.find(callBB->getParent()) != CDGs.graphs.end()) {
-              ControlDependenceGraphBase &cdg = CDGs[callBB->getParent()];
+              if (CDGs->graphs.find(callBB->getParent()) != CDGs->graphs.end()) {
+              ControlDependenceGraphBase &cdg = (*CDGs)[callBB->getParent()];
                 if (cdg.influences(brBB, callBB)) {
                   bool found = (std::find(ctrlDepBrs.begin(),
                     ctrlDepBrs.end(), br) != ctrlDepBrs.end());
@@ -722,7 +557,7 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
           if (corruptedIR_.count(v) || corruptedPtr_.count(v)) {
             paramsCorrupted = true;
             DEBUG(errs() << "Param No." << op_i << " %"
-            << ins2int_[dyn_cast<Instruction>(v)] << " contains corruption.\n");
+            << ins2int[dyn_cast<Instruction>(v)] << " contains corruption.\n");
             coparams[op_i] = &*v;
           }
         }
@@ -765,7 +600,7 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
           corruptedCallIns_.push_back(&*I);
         flag = true;
       }
-      addFuncRet = intraDataflowAnalysis(callee, nullptr, coparams, CDGs,
+      addFuncRet = intraDataflowAnalysis(callee, nullptr, coparams,
           flag, labels);
       if (addFuncRet) {
         add2CrptList(&*I);
@@ -783,7 +618,7 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
           for (auto it : coPtrList) {
             if (it->idxType == GEP_TWO_OP) {
               if (it->gepIdx.idx == gepIdx) {
-                DEBUG(errs() << "Add %" << ins2int_[&*I]<< " to crpt list\n");
+                DEBUG(errs() << "Add %" << ins2int[&*I]<< " to crpt list\n");
                 add2CrptList(&*I);
               }
             }
@@ -793,7 +628,7 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
           for (auto it : coPtrList) {
             if (it->idxType == GEP_THREE_OP) {
               if (it->gepIdx.array_idx == gepIdxPair) {
-                DEBUG(errs() << "Add %" << ins2int_[&*I]<< " to crpt list\n");
+                DEBUG(errs() << "Add %" << ins2int[&*I]<< " to crpt list\n");
                 add2CrptList(&*I);
               }
             }
@@ -807,7 +642,7 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
           if (!corruptedIR_.count(&*I)) {
             orderedcorruptedIR_.push_back(&*I);
             corruptedIR_.insert(&*I);
-            DEBUG(errs() << "Add %" << ins2int_[&*I] << " to crpt list\n");
+            DEBUG(errs() << "Add %" << ins2int[&*I] << " to crpt list\n");
             int op_ii = I->getNumOperands();
             GepIdxStruct * gep_idx = reinterpret_cast<GepIdxStruct *>
                 (malloc(sizeof(GepIdxStruct)));
@@ -872,6 +707,8 @@ uint32_t ConAnalysis::printInterCtrlDepResult(
 
 uint32_t ConAnalysis::getDominators(Module &M, FuncFileLineList &danOps,
     std::set<Function *> &corruptedIRFuncSet) {
+  Inst2IntMap & ins2int = I2I->getInst2IntMap();
+  FileLine2InstListMap & sourcetoIRmap = I2I->getFileLine2InstListMap();
   uint32_t rv = 0;
   // ffl means FuncFileLine
   for (auto fflTuple = danOps.begin(); fflTuple != danOps.end(); fflTuple++) {
@@ -880,7 +717,7 @@ uint32_t ConAnalysis::getDominators(Module &M, FuncFileLineList &danOps,
     std::string funcName = std::get<0>(*fflTuple);
     std::string fileName = std::get<1>(*fflTuple);
     uint32_t line = std::get<2>(*fflTuple);
-    InstructionList iList = sourcetoIRmap_[std::make_pair(fileName, line)];
+    InstructionList iList = sourcetoIRmap[std::make_pair(fileName, line)];
     Function *F = iList.front()->getParent()->getParent();
     if (!corruptedIRFuncSet.count(F)) {
       continue;
@@ -897,15 +734,15 @@ uint32_t ConAnalysis::getDominators(Module &M, FuncFileLineList &danOps,
       std::string filename = std::get<1>(*fflTuple);
       uint32_t line = std::get<2>(*fflTuple);
       // filename, lineNum -> Instruction *
-      auto mapitr = sourcetoIRmap_.find(std::make_pair(filename, line));
-      if (mapitr == sourcetoIRmap_.end()) {
+      auto mapitr = sourcetoIRmap.find(std::make_pair(filename, line));
+      if (mapitr == sourcetoIRmap.end()) {
         errs() << "ERROR: <" << std::get<0>(*fflTuple) << " "
                << std::get<2>(*fflTuple) << ">"
-               << " sourcetoIRmap_ look up failed.\n";
+               << " sourcetoIRmap look up failed.\n";
         abort();
       }
       auto fileLinePair = std::make_pair(filename, line);
-      Instruction * danOpI = sourcetoIRmap_[fileLinePair].front();
+      Instruction * danOpI = sourcetoIRmap[fileLinePair].front();
       auto it = dominators[danOpI->getParent()].begin();
       auto it_end = dominators[danOpI->getParent()].end();
       bool corruptBranchFlag = false;
@@ -923,7 +760,7 @@ uint32_t ConAnalysis::getDominators(Module &M, FuncFileLineList &danOps,
         continue;
       DEBUG(errs() << "Dangerous Operation Basic Block & Instruction\n");
       DEBUG(errs() << danOpI->getParent()->getName() << " & "
-             << ins2int_[&*danOpI] << "\n");
+             << ins2int[&*danOpI] << "\n");
       if (MDNode *N = danOpI->getMetadata("dbg")) {
         DILocation Loc(N);
         std::string fileName = Loc.getFilename().str();

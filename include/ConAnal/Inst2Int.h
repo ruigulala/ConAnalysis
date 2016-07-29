@@ -54,6 +54,7 @@ class Inst2Int : public ModulePass {
     FileLine2InstListMap & getFileLine2InstListMap();
     bool printMap(Module &M);
     bool printInst(Instruction *I);
+    bool printMappedInstruction(Value * v);
     virtual bool runOnModule(Module &M);
 
     //**********************************************************************
@@ -78,7 +79,6 @@ class Inst2Int : public ModulePass {
     uint64_t ins_count_ = 1;
     FileLine2InstListMap sourcetoIRmap_;
     void clearClassDataMember();
-    bool printMappedInstruction(Value * v);
 };
 }// namespace ConAnal
 #endif  // INCLUDE_CONANAL_INST2INT_H_

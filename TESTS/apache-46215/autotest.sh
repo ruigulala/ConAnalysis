@@ -7,7 +7,7 @@ if [ ! $# -eq 2 ]; then
 fi
 
 # The command will be called at top level of build folder
-TEST_DIR='TESTS/apache-46215'
+TEST_DIR='TESTS/apache-21287'
 CONANAL_DIR='lib/ConAnal'
 DOL_DIR='lib/DOL'
 CDG_DIR='lib/CDG'
