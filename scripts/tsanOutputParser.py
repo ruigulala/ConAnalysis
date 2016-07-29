@@ -165,6 +165,8 @@ def runNormalSyncLoop(args):
             if flagReadStart and flagBlockStart:
                 fileName = os.path.basename(os.path.normpath(callStackLine.group(3)))
                 if fileName == "tsan_interceptors.cc" or fileName == "sanitizer_common_interceptors.inc":
+                    flagReadStart = False
+                    flagBlockStart = False
                     continue
                 logging.debug('Line ' + str(i) + ": Writing Content")
                 if len(readResultList) == 0: 
@@ -173,6 +175,8 @@ def runNormalSyncLoop(args):
             if flagWriteStart and flagBlockStart:
                 fileName = os.path.basename(os.path.normpath(callStackLine.group(3)))
                 if fileName == "tsan_interceptors.cc" or fileName == "sanitizer_common_interceptors.inc":
+                    flagWriteStart = False
+                    flagBlockStart = False
                     continue
                 logging.debug('Line ' + str(i) + ": Writing Content")
                 if len(writeResultList) == 0:
