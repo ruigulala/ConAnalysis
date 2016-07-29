@@ -10,6 +10,7 @@ expect "*\(lldb\) \u001b\[22m\u001b\[8Gco" {
 
 expect "*@@@EXIT@@@*" {
 	send_user $expect_out(buffer)
+	close
 	exit
 }
 

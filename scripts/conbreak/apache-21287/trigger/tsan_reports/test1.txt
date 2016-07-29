@@ -1,2 +1,0 @@
-FUNC_NAME (mod_mem_cache.c:653)
-FUNC_NAME (mod_mem_cache.c:354)

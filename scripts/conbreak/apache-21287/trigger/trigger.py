@@ -2,16 +2,17 @@
 
 import lldb
 import sys
-import os
 import random
 import time
 import threading
 
 # USER SET GLOBAL VARIABLES
 WAIT_TIME         = 1                 # Timeout (in sec, ie. 0.1 = 100ms), default = 1
-INTERACTIVE       = 1                 # Default = 1 (true)
+KILL_TIME         = 5                 # Time to wait after last BP until lldb is killed
+TERM_TIME         = 20                # Timeout for no activity (non-interactive only)
+INTERACTIVE       = 0                 # Default = 1, set to 0 when using wrapper script
 TSAN_REPORT_FILE  = "report.txt"      # File with parsed TSAN report
-ARG_FILE          = "arguments.txt"   # Arguments for trigger.py and target executable
+ARG_FILE          = "args.txt"        # Arguments for trigger.py and target executable
 OUTPUT_FILENAME   = "lldb_out.txt"    # Output file if INTERACTIVE = 0
 
 # DO NOT CHANGE
@@ -63,6 +64,7 @@ def set_trigger(in_read, in_write):
 	out("Configuration done!")
 
 
+# Output wrapper function
 def out(msg):
 	if INTERACTIVE:
 		print msg
@@ -70,7 +72,18 @@ def out(msg):
 
 	print_lock.acquire()
 	OUTPUT_FD.write(str(msg) + "\n")
+	OUTPUT_FD.flush()
 	print_lock.release()
+
+
+# Used for uninteractive analysis
+def kill():
+	OUTPUT_FD.close()
+	
+	# Send garbage command to lldb, Expect will pick it up and 
+	# kill the program from the outside
+	lldb.debugger.HandleCommand("@@@EXIT@@@")
+	exit()
 
 
 # Release a thread if stable state is reached
@@ -79,16 +92,28 @@ def timer():
 
 	global RUNNING
 
-	if RUNNING and time.time() - LAST_BREAK > WAIT_TIME:
-		process = lldb.debugger.GetSelectedTarget().GetProcess()
+	if RUNNING:
+		if time.time() - LAST_BREAK > WAIT_TIME:
+			process = lldb.debugger.GetSelectedTarget().GetProcess()
 
-		RUNNING = False
+			RUNNING = False
 
-		update_timer()
-		release_bp()
+			if release_bp():
+				update_timer()
 
-		RUNNING = True
-		process.Continue()
+			RUNNING = True
+			process.Continue()
+
+		if time.time() - LAST_BREAK > KILL_TIME:
+			out("TERMINATE: No breakpoints hit in " + str(KILL_TIME) + " sec...")
+			if INTERACTIVE:
+				exit()
+			else:
+				kill()
+
+	elif not INTERACTIVE and time.time() - LAST_BREAK > TERM_TIME:
+		out("TERMINATE: Unable to start up after " + str(TERM_TIME) + " sec...")
+		kill()
 
 	process_lock.release()
 
@@ -113,24 +138,24 @@ def update_timer():
 # Sometimes not all threads will be suspended but program still stops, leaving 
 # the job of releasing BPs to fall back to the timeout
 def all_bp_hit():
-	# Old mechanism. Just check if all threads are suspended..
-#	for t in lldb.debugger.GetSelectedTarget().GetProcess():
-#		if not t.IsSuspended():
-#			return False
-#
-#	return True
-
-	c = 0
-	res = False
-
 	for t in lldb.debugger.GetSelectedTarget().GetProcess():
-		if t.IsSuspended():
-			c += 1
+		if not t.IsSuspended():
+			return False
 
-	if c >= 10:
-		res = True
-	
-	return res
+	return True
+
+	# Old mechanism.  Just check if 10 threads are suspended
+#	c = 0
+#	res = False
+#
+#	for t in lldb.debugger.GetSelectedTarget().GetProcess():
+#		if t.IsSuspended():
+#			c += 1
+#
+#	if c >= 10:
+#		res = True
+#	
+#	return res
 
 
 # Randomly choose a thread to be released from breakpoint.
@@ -142,7 +167,7 @@ def release_bp():
 	# Check if process is invalid, can cause errors
 	if process.IsValid() == False:
 		out("######## WARNING: PROCESS IS INVALID ########")
-		return
+		return False
 
 	global OBJ_ARR
 
@@ -150,12 +175,13 @@ def release_bp():
 
 	# No more suspended threads...
 	if obj_arr_len == 0:
-		return
+		return False
 
 	rand = random.randrange(0, obj_arr_len)
 	thread = process.GetThreadByID(OBJ_ARR[rand][-1])
 
-	out(str(time.time()) + " >>>>>>>>>> INFO: Releasing thread " + str(thread.GetThreadID()))
+	out(str(time.time()) + " >>>>>>>>>> INFO: Attempting to release thread " + 
+		str(thread.GetThreadID()))
 
 	# Make sure process is stopped before modifying thread states
 	if not process.is_stopped:
@@ -163,9 +189,10 @@ def release_bp():
 
 	if thread.Resume() == False:
 		out("### ERROR IN THREAD.RESUME() ###")
-		return
+		return False
 
 	del OBJ_ARR[rand]
+	return True
 
 
 # Get address of all variables on line reported by TSAN
@@ -290,11 +317,8 @@ def read_callback(frame, bp_loc, dict):
 		STATUS_FOUND = True
 		process.Stop()
 
-		# Send garbage value to lldb, expect will pick it up and kill
-		# the program from the "outside"
 		if not INTERACTIVE:
-			OUTPUT_FD.close()
-			lldb.debugger.HandleCommand("@@@EXIT@@@")
+			kill()
 
 	else:
 		update_timer()
@@ -346,11 +370,8 @@ def write_callback(frame, bp_loc, dict):
 		STATUS_FOUND = True
 		process.Stop()
 
-		# Send garbage value to lldb, expect will pick it up and kill
-		# the program from the "outside"
 		if not INTERACTIVE:
-			OUTPUT_FD.close()
-			lldb.debugger.HandleCommand("@@@EXIT@@@")
+			kill()
 
 	else:
 		update_timer()
@@ -369,10 +390,7 @@ def write_callback(frame, bp_loc, dict):
 
 def __lldb_init_module(debugger, dict):
 	# Grab aruments from argument file
-	global INTERACTIVE
 	with open(ARG_FILE) as f:
-		INTERACTIVE = int(f.readline().split("=")[1])
-		print "INTERACTIVE=" + str(INTERACTIVE)
 		args = f.readline()
 
 	if not INTERACTIVE:

@@ -18,24 +18,33 @@ for file in $tsan_reports_folder/*; do
 	ln -sf $file report.txt
 
 	# Start lldb through Expect script
-	try ./interface.exp &>/dev/null	&
+	try expect interface.exp &>/dev/null &
+	pid=$!
 
 	# Wait for lldb to start up
 	sleep 5
 
 	# Send bug-triggering input
-	./benchmark.sh
+	sh benchmark.sh &>/dev/null
+
+	# Wait for lldb to finish
+	wait $!
 
 	# In case exit wasn't clean so next run there aren't any errors
 	pkill lldb
 	pkill target
 
 	# Parse lldb output for match, report results to file
-	grep_output="$(try grep '*** HALT ***' $lldb_output)"
+	grep_output="$(grep '*** HALT ***' $lldb_output)"
 
 	if [[ -n "$grep_output" ]]; then
+		# TODO: Grab variable values from lldb report and print them
 		cat 'report.txt' >> ../out.txt
 		printf '\n' >> ../out.txt
+	else
+		# TODO: Print reason for irreproducibility
+		cat 'report.txt' >> ../nr.txt
+		printf '\n' >> ../nr.txt
 	fi
 
 done
