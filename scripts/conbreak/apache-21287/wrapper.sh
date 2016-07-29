@@ -1,17 +1,24 @@
 #!/bin/bash
 
-tsan_reports_folder="tsan_reports"
-lldb_command_file="lldb_cmd.txt"
+# Error handling
+yell() { echo "$0: $*" >&2; }
+die() { yell "$*"; exit 111; }
+try() { "$@" || die "cannot $*"; }
+
+# User defined variables
+tsan_reports_folder='tsan_reports'
+lldb_output='lldb_out.txt'
 
 cd trigger
 
-for file in $tsan_reports_folder/*
-do
+for file in $tsan_reports_folder/*; do
+	echo "Testing $file..."
+
 	# Create symlink to tsan report for trigger to read
 	ln -sf $file report.txt
 
 	# Start lldb through Expect script
-	./interface.exp &>/dev/null	&
+	try ./interface.exp &>/dev/null	&
 
 	# Wait for lldb to start up
 	sleep 5
@@ -23,9 +30,16 @@ do
 	pkill lldb
 	pkill target
 
-	# TODO: Parse out.txt for match, report results to file
+	# Parse lldb output for match, report results to file
+	grep_output="$(try grep '*** HALT ***' $lldb_output)"
+
+	if [[ -n "$grep_output" ]]; then
+		cat 'report.txt' >> ../out.txt
+		printf '\n' >> ../out.txt
+	fi
 
 done
 
 # Cleanup temporary files
-#rm report.txt
+rm 'report.txt'
+rm $lldb_output
