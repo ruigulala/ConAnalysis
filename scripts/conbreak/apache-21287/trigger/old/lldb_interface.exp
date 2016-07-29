@@ -1,0 +1,9 @@
+#!/usr/bin/expect -f
+
+set timeout -1
+
+spawn lldb
+expect "*\(lldb\) *"
+send "file target\r"
+expect "*\(lldb\) *"
+send "command script import trigger.py\r"
