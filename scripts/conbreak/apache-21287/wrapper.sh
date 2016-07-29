@@ -19,7 +19,6 @@ for file in $tsan_reports_folder/*; do
 
 	# Start lldb through Expect script
 	try expect interface.exp &>/dev/null &
-	pid=$!
 
 	# Wait for lldb to start up
 	sleep 5

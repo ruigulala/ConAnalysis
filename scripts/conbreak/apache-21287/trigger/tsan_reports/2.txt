@@ -1,2 +1,0 @@
-join_start_thread (worker.c:1173)                                               
-start_threads (worker.c:1083) 
