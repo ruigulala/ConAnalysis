@@ -121,12 +121,10 @@ class ConAnalysis : public ModulePass {
     ///
     virtual bool runOnModule(Module &M);
     ///
-    virtual bool getCorruptedIRs(Module &M, DOL &labels,
-        ControlDependenceGraphs * CDGs);
+    virtual bool getCorruptedIRs(Module &M, DOL &labels);
     ///
     virtual bool intraDataflowAnalysis(Function *, Instruction *,
                                        CorruptedArgs &corruptedparams,
-                                       ControlDependenceGraphs * CDGs,
                                        bool ctrlDep, DOL &labels);
     virtual uint32_t printInterCtrlDepResult(
         std::map<FileLine, std::list<Value *>> resultMap);

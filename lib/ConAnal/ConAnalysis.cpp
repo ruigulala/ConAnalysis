@@ -294,12 +294,11 @@ bool ConAnalysis::runOnModule(Module &M) {
 #endif
   parseInput(RaceReportInput, raceReport);
   initializeCallStack(raceReport);
-  getCorruptedIRs(M, labels, CDGs);
+  getCorruptedIRs(M, labels);
   return false;
 }
 
-bool ConAnalysis::getCorruptedIRs(Module &M, DOL &labels,
-    ControlDependenceGraphs * CDGs) {
+bool ConAnalysis::getCorruptedIRs(Module &M, DOL &labels) {
   DEBUG(errs() << "---- Getting Corrupted LLVM IRs ----\n");
   assert(callStackHead_.size() != 0 && "Error: callStackHead_ is empty!");
   for (auto cs_itr : callStackHead_) {
@@ -319,7 +318,7 @@ bool ConAnalysis::getCorruptedIRs(Module &M, DOL &labels,
       DEBUG(errs() << "Original Callstack: Go into \"" << loc.first->getName()
              << "\"\n");
       bool addFuncRet = false;
-      addFuncRet = intraDataflowAnalysis(loc.first, loc.second, coparams, CDGs,
+      addFuncRet = intraDataflowAnalysis(loc.first, loc.second, coparams,
           false, labels);
       DEBUG(errs() << "Callstack POP " << loc.first->getName() << "\n");
       callStack_.pop_front();
@@ -371,7 +370,6 @@ bool ConAnalysis::getCorruptedIRs(Module &M, DOL &labels,
 
 bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
                                         CorruptedArgs &corruptedparams,
-                                        ControlDependenceGraphs * CDGs,
                                         bool ctrlDep, DOL &labels) {
   Inst2IntMap & ins2int = I2I->getInst2IntMap();
   bool rv = false;
@@ -602,7 +600,7 @@ bool ConAnalysis::intraDataflowAnalysis(Function * F, Instruction * ins,
           corruptedCallIns_.push_back(&*I);
         flag = true;
       }
-      addFuncRet = intraDataflowAnalysis(callee, nullptr, coparams, CDGs,
+      addFuncRet = intraDataflowAnalysis(callee, nullptr, coparams,
           flag, labels);
       if (addFuncRet) {
         add2CrptList(&*I);
