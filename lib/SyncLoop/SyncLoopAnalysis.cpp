@@ -410,6 +410,16 @@ bool SyncLoop::intraFlowAnalysis(Function * F, Instruction * ins) {
 }
 
 bool SyncLoop::adhocSyncAnalysis(FuncFileLineList &input, Loop * iL) {
+  bool constantWrite = false;
+  for (auto cs_itr : writeFuncInstList_) {
+    Instruction *I = cs_itr.second;
+    if (isa<StoreInst>(I)) {
+      if (isa<Constant>(I->getOperand(0)))
+        constantWrite = true;
+    }
+  }
+  if (!constantWrite)
+    return false;
   for (auto cs_itr : readFuncInstList_) {
     Function *F = cs_itr.first;
     Instruction *I = cs_itr.second;
