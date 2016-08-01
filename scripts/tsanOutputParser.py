@@ -165,8 +165,9 @@ def runNormalSyncLoop(args):
             if flagReadStart and flagBlockStart:
                 fileName = os.path.basename(os.path.normpath(callStackLine.group(3)))
                 if fileName == "tsan_interceptors.cc" or fileName == "sanitizer_common_interceptors.inc":
-                    flagReadStart = False
-                    flagBlockStart = False
+                    if args.outputtype != "verifier":
+                        flagReadStart = False
+                        flagBlockStart = False
                     continue
                 logging.debug('Line ' + str(i) + ": Writing Content")
                 if len(readResultList) == 0: 
@@ -175,8 +176,9 @@ def runNormalSyncLoop(args):
             if flagWriteStart and flagBlockStart:
                 fileName = os.path.basename(os.path.normpath(callStackLine.group(3)))
                 if fileName == "tsan_interceptors.cc" or fileName == "sanitizer_common_interceptors.inc":
-                    flagWriteStart = False
-                    flagBlockStart = False
+                    if args.outputtype != "verifier":
+                        flagWriteStart = False
+                        flagBlockStart = False
                     continue
                 logging.debug('Line ' + str(i) + ": Writing Content")
                 if len(writeResultList) == 0:
@@ -308,7 +310,7 @@ if __name__=='__main__':
     # based on the result of syncloop
     parser.add_argument('--outputtype', type=str, dest="outputtype",
             action="store", default="syncloop", required=True,
-            help="Running type [ conanalysis | syncloop ]")
+            help="Running type [ conanalysis | syncloop | verifier]")
     parser.add_argument('--input', type=str, dest="raceReportIn",
             action="store", default="none", required=True,
             help="tsan raw race report")
