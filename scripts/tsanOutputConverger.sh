@@ -30,14 +30,16 @@ fi
 
 cp -r $FOLDER1 $FOLDERMERGED
 
+md5sum $FOLDER1/* > md5_folder1
+md5sum $FOLDER2/* > md5_folder2
 
 for f1 in $FOLDER2/*
 do
     IFDIFFERENT=1
-    prev_sum=$(md5sum $f1 | awk '{print $1}')
+    prev_sum=$(grep $f1 md5_folder2 | awk '{print $1}')
     for f2 in $FOLDER1/*
     do
-        sum=$(md5sum $f2 | awk '{print $1}')
+        sum=$(grep $f2 md5_folder1 | awk '{print $1}')
         if [ "$sum" == "$prev_sum" ] ; then
             IFDIFFERENT=0
         else
@@ -47,7 +49,8 @@ do
     if [ "$IFDIFFERENT" -eq 1 ]; then
         cp $f1 $FOLDERMERGED
     fi
-
 done
 
-echo "Done Merging. Please check the result folder $FOLDERMERGED!"
+rm md5_folder1 md5_folder2
+
+echo "Done Merging. Please check the result folder!"
