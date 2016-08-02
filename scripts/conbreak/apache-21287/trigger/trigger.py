@@ -76,8 +76,11 @@ def out(msg):
 	print_lock.release()
 
 
-# Used for uninteractive analysis
+# Wrapper for ensuring clean exit
 def kill():
+	if INTERACTIVE:
+		exit()
+
 	OUTPUT_FD.close()
 	
 	# Send garbage command to lldb, Expect will pick it up and 
@@ -104,12 +107,9 @@ def timer():
 			RUNNING = True
 			process.Continue()
 
-		if time.time() - LAST_BREAK > KILL_TIME:
+		if len(OBJ_ARR) == 0 and time.time() - LAST_BREAK > KILL_TIME:
 			out("TERMINATE: No breakpoints hit in " + str(KILL_TIME) + " sec...")
-			if INTERACTIVE:
-				exit()
-			else:
-				kill()
+			kill()
 
 	elif not INTERACTIVE and time.time() - LAST_BREAK > TERM_TIME:
 		out("TERMINATE: Unable to start up after " + str(TERM_TIME) + " sec...")
@@ -199,7 +199,8 @@ def release_bp():
 def get_addr(frame, filename, line_num):
 	filespec = lldb.SBFileSpec(filename, False)
 	if not filespec.IsValid():
-		out(" ####### FILESPEC INVALID ####### ")
+		out(" ####### ERROR: Filespec is invalid ####### ")
+		kill()
 	
 	target = lldb.debugger.GetSelectedTarget()
 	source_mgr = target.GetSourceManager()
@@ -252,11 +253,11 @@ def get_addr(frame, filename, line_num):
 	except:
 		out("####### ERROR: Unable to extract variable name from source #######")
 		out(sys.exc_info()[0])
-		exit()
+		kill()
 
 	if len(addrs) == 0:
 		out("####### ERROR: No variables found #######")
-		exit()
+		kill()
 
 	return addrs
 
@@ -267,8 +268,8 @@ def match(arr):
 
 	for obj in OBJ_ARR:
 
-		# Only considered a match if instructions differ
-		if obj[-2] != arr[-2]:
+		# Only considered a match if tid and instructions differ
+		if obj[-1] != arr[-1] and obj[-2] != arr[-2]:
 
 			# Check through all watched addresses
 			for addr1 in obj[:-2]:
