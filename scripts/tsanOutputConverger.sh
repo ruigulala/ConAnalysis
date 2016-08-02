@@ -1,8 +1,6 @@
 #!/bin/bash
 # Usage: ./tsanOutputConverger.sh folder1 folder2 output_folder
 
-set -x
-
 if [ ! $# -eq 3 ]; then
   echo -e "Usage: ./tsanOutputConverger.sh folder1 folder2 output_folder"
   exit 1
@@ -36,10 +34,11 @@ cp -r $FOLDER1 $FOLDERMERGED
 for f1 in $FOLDER2/*
 do
     IFDIFFERENT=1
+    prev_sum=$(md5sum $f1 | awk '{print $1}')
     for f2 in $FOLDER1/*
     do
-        diff $f1 $f2 > /dev/null
-        if [ $? -eq 0 ] ; then
+        sum=$(md5sum $f2 | awk '{print $1}')
+        if [ "$sum" == "$prev_sum" ] ; then
             IFDIFFERENT=0
         else
             continue
