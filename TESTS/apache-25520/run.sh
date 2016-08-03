@@ -48,35 +48,39 @@ then
     then
         echo "Seems you've built apache already, very good!"
     else
-        echo "Error: You need to build libsafe before running this script."
+        echo "Error: You need to build apache before running this script."
         echo "You can use mk.sh to automatically build it."
     fi
 
-    valgrind --version
-    if [ $? -ne 0 ]
-    then
-        echo "Error: Please install valgrind before running this script."
-        echo "We strongly recommend using valgrind 3.11."
-    fi
     cd $CONANAL_ROOT/TESTS/apache-25520
-    # Start valgrind here!
-    valgrind --tool=helgrind --trace-children=yes --read-var-info=yes $CONANAL_ROOT/concurrency-exploits/apache-21287/apache-install/bin/apachectl -k start >| valgrind_latest.output 2>&1 &
-    # Bug triggering input here!
-    httperf --server=127.0.0.1 --port=7000 --uri=/index.html.en --num-conns=100 --num-calls=100
+    
+	# TSAN flags (set environment variable before running this script)
+    # Just run TSAN (assuming apache server is already compiled with TSAN & clang)
+    env TSAN_OPTIONS="log_path=$CONANAL_ROOT/TESTS/apache-25520/output/tsan" $CONANAL_ROOT/concurrency-exploits/apache-25520/apache-install/bin/apachectl -k start
+
+	# Bug triggering input here
+	#ab -n 1000 -c 100 127.0.0.1:7000/index.html.en
 fi
 
-if [ "$1" != "no_static_analysis" ]
+if [ "$1" != "no_static_analysis" -a 0 -eq 1 ]
 then
     # Step 3: We'll run our LLVM static analysis pass to analyze the race
     # Use inotify to monitor any new files within the folder
     inotifywait -m `pwd` -e create |
         while read path action file; do
-            echo "The race report is newly added '$file'. Start static analysis"
-            # do something with the file
-            cp $file $CONANAL_ROOT/build/TESTS/apache-25520
-            pushd $CONANAL_ROOT/build/TESTS/apache-25520/ > /dev/null
-            ./autotest.sh apache-25520 $file >| "finalReport_$file" 2>&1
-            popd > /dev/null
+            # Remove the duplicated files if there is any
+            fdupes  -dqN . > /dev/null
+            if [ -f $file ]
+            then
+                echo "The race report is newly added '$file'. Start static analysis"
+                # do something with the file
+                cp $file $CONANAL_ROOT/build/TESTS/apache-21287/
+                pushd $CONANAL_ROOT/build/TESTS/apache-21287/ > /dev/null
+                ./autotest.sh apache-21287 $file >| "finalReport_$file" 2>&1
+                popd > /dev/null        
+            else
+                echo "Duplication found! Skip!"
+            fi
         done &
 
     # Monitor Valgrind's output file to add new race reports
