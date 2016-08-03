@@ -69,7 +69,7 @@ then
 
 	# Bug triggering input here!
     #httperf --server=127.0.1.1 --port=7000 --uri=/pippo.php?variable=1111 --num-conns=10 --num-calls=10
-	ab -n 1000 -c 100 127.0.1.1:7000/pippo.php?variable=88
+	#ab -n 1000 -c 100 127.0.1.1:7000/pippo.php?variable=88
 fi
 
 if [ "$1" != "no_static_analysis" -a 0 -eq 1 ]
