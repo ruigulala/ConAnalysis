@@ -4,4 +4,4 @@ build/
 *.o
 .color_coded
 *.ll
-**/tsan.[1-9]*
+TESTS/apache-21287/output

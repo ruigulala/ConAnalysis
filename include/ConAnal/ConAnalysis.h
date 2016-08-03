@@ -40,13 +40,13 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/CallGraph.h"
-#include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "ConAnal/DangerOpLabel.h"
 #include "ConAnal/ControlDependenceGraph.h"
+#include "ConAnal/Inst2Int.h"
 #include "ConAnal/typedefs.h"
 
 using namespace llvm;
@@ -74,17 +74,15 @@ class ConAnalysis : public ModulePass {
     // We don't modify the program, so we preserve all analyses
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.setPreservesAll();
+      AU.addRequired<Inst2Int>();
       AU.addRequired<DOL>();
-      AU.addRequired<LoopInfo>();
       AU.addRequired<ControlDependenceGraphs>();
     }
 
  private:
-    std::map<Instruction *, int> ins2int_;
-    uint64_t ins_count_ = 1;
+    Inst2Int *I2I = nullptr;
+    ControlDependenceGraphs *CDGs = nullptr;
     bool controlDependent = false;
-    /// <fileName, lineNum> -> list<Instruction *>
-    std::map<std::pair<std::string, uint32_t>, InstructionList> sourcetoIRmap_;
     std::set<Value *> corruptedIR_;
     std::list<Instruction *> corruptedBr_;
     std::list<Instruction *> corruptedCallIns_;
@@ -95,12 +93,11 @@ class ConAnalysis : public ModulePass {
     std::map<Function *, EnterExitVal> funcEnterExitValMap_;
     std::map<Function *, BB2SetMap> dominatorMap_;
     std::list<Value *> orderedcorruptedIR_;
-    std::list<std::pair<Function *, Instruction *>> callStack_;
-    std::list<std::pair<Function *, Instruction *>> callStackHead_;
-    std::list<std::pair<Function *, Instruction *>> callStackBody_;
+    FuncInstList callStack_;
+    FuncInstList callStackHead_;
+    FuncInstList callStackBody_;
     std::map<Value *, std::list<Value *>> corruptedMap_;
 
-    virtual bool add2CorruptedIR_(Value * v);
     /// Avoid funky problems of uninitialized data member
     void clearClassDataMember();
     ///
@@ -123,27 +120,11 @@ class ConAnalysis : public ModulePass {
     void initializeCallStack(FuncFileLineList &csInput);
     ///
     virtual bool runOnModule(Module &M);
-    /// This method create two maps for future quick search.
-    /// The first map is:
-    /// Instruction -> Number
-    /// The second map is:
-    /// <FileName, lineNum> -> Instruction
-    virtual bool createMaps(Module &M);
-    virtual bool iterateLoops(std::set<BasicBlock *> &firstInsBBSet, Loop * L,
-        unsigned nesting);
-    virtual bool checkLoop(Module &M);
-    /// 
-    bool printMappedInstruction(Value * v);
-    /// This method prints all the instructions with their outter BasicBlock
-    /// and Function information.
-    virtual bool printMap(Module &M);
     ///
-    virtual bool getCorruptedIRs(Module &M, DOL &labels, bool inLoop,
-        ControlDependenceGraphs &CDGs);
+    virtual bool getCorruptedIRs(Module &M, DOL &labels);
     ///
     virtual bool intraDataflowAnalysis(Function *, Instruction *,
                                        CorruptedArgs &corruptedparams,
-                                       ControlDependenceGraphs &CDGs,
                                        bool ctrlDep, DOL &labels);
     virtual uint32_t printInterCtrlDepResult(
         std::map<FileLine, std::list<Value *>> resultMap);

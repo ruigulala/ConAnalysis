@@ -1,44 +1,44 @@
 # ConAnalysis
 Concurrency Attack Analysis.
-Right now, all the developement is under Ubuntu 14.04 LTS. Make sure you have allocated at least 4GB memory. Otherwise the linking process may run out of memory and fail.
+Right now, all the developement is under Ubuntu 16.04 LTS. Make sure you have allocated at least 4GB memory. Otherwise the LLVM linking process may run out of memory and fail.
 
-## Install LLVM 3.6.1 & clang 3.6.1 & LLDB 3.6.1.
+## Install LLVM 3.8.0 & clang 3.8.0 & LLDB 3.8.0 & ThreadSanitizer 3.8.0.
 
-* Download the source code of LLVM 3.6.1 from the following website.
+* Download the source code of LLVM 3.8.0 from the following website.
 ```
 http://llvm.org/releases/download.html
 ```
-* Decompress LLVM 3.6.1 source code using
+* Decompress LLVM 3.8.0 source code using
 ```
-tar -xvf llvm-3.6.1.src.tar.xz
+tar -xvf llvm-3.8.0.src.tar.xz
 ```
 
-* Download the source code of clang 3.6.1 & Compiler RT & LLDB 3.6.1 from the following website.
+* Download the source code of clang 3.8.0 & Compiler RT & LLDB 3.8.0 from the following website.
 ```
 http://llvm.org/releases/download.html
 ```
 
-* Decompress clang 3.6.1 source code in the previous llvm source code folder.
+* Decompress clang 3.8.0 source code in the previous llvm source code folder.
 The path is path-to-llvm-source/tools/
 ```
-tar -xvf cfe-3.6.1.src.tar.xz -C llvm-3.6.1.src/tools/
-tar -xvf lldb-3.6.1.src.tar.xz -C llvm-3.6.1.src/tools/
-tar -xvf compiler-rt-3.6.1.src.tar.xz -C llvm-3.6.1.src/projects/
+tar -xvf cfe-3.8.0.src.tar.xz -C llvm-3.8.0.src/tools/
+tar -xvf lldb-3.8.0.src.tar.xz -C llvm-3.8.0.src/tools/
+tar -xvf compiler-rt-3.8.0.src.tar.xz -C llvm-3.8.0.src/projects/
 ```
 
 * Rename the source code folder to clang and compiler-rt
-clang source code folder is cfe-3.6.1.src under llvm-3.6.1.src/tools/
-compiler-rt source code folder is under llvm-3.6.1.src/projects
+clang source code folder is cfe-3.8.0.src under llvm-3.8.0.src/tools/
+compiler-rt source code folder is under llvm-3.8.0.src/projects
 
 ```
-mv cfe-3.6.1.src clang
-mv compiler-rt-3.6.1.src compiler-rt
-mv lldb-3.6.1.src lldb
+mv cfe-3.8.0.src clang
+mv compiler-rt-3.8.0.src compiler-rt
+mv lldb-3.8.0.src lldb
 ```
 
 * Compile LLVM
 
-Goto path-to-llvm-source, the folder name is llvm-3.6.1.src
+Goto path-to-llvm-source, the folder name is llvm-3.8.0.src
 
 Make sure you replace the path-to... with your own path name!!!!
 ```
@@ -48,7 +48,7 @@ cd path-to-llvm-source
 Install the following dependencies.
 ```
 sudo apt-get update
-sudo apt-get install build-essential subversion swig python2.7-dev libedit-dev libncurses5-dev cmake inotify-tools fdupes libxml2-dev swig
+sudo apt-get install build-essential subversion python2.7-dev libedit-dev libncurses5-dev cmake inotify-tools fdupes libxml2-dev swig expect
 ```
 Build LLVM together with Clang using CMake
 ```
