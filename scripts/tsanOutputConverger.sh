@@ -53,4 +53,4 @@ done
 
 rm md5_folder1 md5_folder2
 
-echo "Done Merging. Please check the result folder!"
+echo "Finish Two Folder Merging. Please check the result folder!"
