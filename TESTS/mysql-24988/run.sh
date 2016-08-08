@@ -57,7 +57,7 @@ then
     env TSAN_OPTIONS="log_path=$CONANAL_ROOT/TESTS/mysql-24988/output/tsan" mysql-install/bin/mysql_install_db --user=root
     env TSAN_OPTIONS="log_path=$CONANAL_ROOT/TESTS/mysql-24988/output/tsan" mysql-install/libexec/mysqld --user=root &
     sleep 5
-    env TSAN_OPTIONS="log_path=$CONANAL_ROOT/TESTS/mysql-24988/output/tsan" mysql-install/bin/mysql -u root < grant.sql
+    env TSAN_OPTIONS="log_path=$CONANAL_ROOT/TESTS/mysql-24988/output/tsan" mysql-install/bin/mysql -u root < $CONANAL_ROOT/TESTS/mysql-24988/grant.sql
     pkill -9 mysql
 
     cd $CONANAL_ROOT/TESTS/mysql-24988
