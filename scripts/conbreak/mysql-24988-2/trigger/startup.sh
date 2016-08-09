@@ -5,10 +5,16 @@
 # start up proceedure
 
 # Start up code goes here
-./$CONANAL_ROOT/concurrency_exploits/mysql-24988/mysql-install/bin/mysqld --user=root &>/dev/null &
+set -e
+
+echo "Starting mysql..."
+cd $CONANAL_ROOT/concurrency-exploits/mysql-24988
+mysql-install/bin/mysql_install_db --user=root
+mysql-install/libexec/mysqld --user=root &
 
 # Give MySQL a little time to startup
 sleep 3
 
+echo "Populating database..."
 sysbench --test=oltp --oltp-table-size=1000000 --mysql-db=dbca \
-         --mysql-user=root prepare &>/dev/null
+         --mysql-user=root prepare

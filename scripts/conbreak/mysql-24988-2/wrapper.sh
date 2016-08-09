@@ -22,6 +22,8 @@ for file in $tsan_reports_folder/*; do
 		sh startup.sh &>/dev/null
 	fi
 
+	echo "Starting lldb..."
+	
 	# Start lldb through Expect script
 	try expect interface.exp &>/dev/null &
 
@@ -36,7 +38,7 @@ for file in $tsan_reports_folder/*; do
 
 	# Shutdown script (optional)
 	if [[ -f shutdown.sh ]]; then
-	sh shutdown.sh &>/dev/null
+		sh shutdown.sh &>/dev/null
 	fi
 
 	# In case exit wasn't clean so next run there aren't any errors

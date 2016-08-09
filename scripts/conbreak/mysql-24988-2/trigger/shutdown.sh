@@ -6,7 +6,7 @@
 # killing the target executable (handled by wrapper.sh)
 
 # Shutdown code starts here
-sysbench --test=oltp --mysql-db=dbca --mysql-user=root cleanup &>/dev/null
+sysbench --test=oltp --mysql-db=dbca --mysql-user=root cleanup
 
 pkill mysql
 pkill mysqld
