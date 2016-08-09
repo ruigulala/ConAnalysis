@@ -10,7 +10,7 @@ import threading
 WAIT_TIME         = 1                 # Timeout (in sec, ie. 0.1 = 100ms), default = 1
 KILL_TIME         = 5                 # Time to wait after last BP until lldb is killed
 TERM_TIME         = 20                # Timeout for no activity (non-interactive only)
-INTERACTIVE       = 1                 # Default = 1, set to 0 when using wrapper script
+INTERACTIVE       = 0                 # Default = 1, set to 0 when using wrapper script
 TSAN_REPORT_FILE  = "report.txt"      # File with parsed TSAN report
 ARG_FILE          = "args.txt"        # Arguments for trigger.py and target executable
 OUTPUT_FILENAME   = "lldb_out.txt"    # Output file if INTERACTIVE = 0
@@ -107,7 +107,7 @@ def timer():
 			RUNNING = True
 			process.Continue()
 
-		if not INTERACTIVE and len(OBJ_ARR) == 0 and time.time() - LAST_BREAK > KILL_TIME:
+		if len(OBJ_ARR) == 0 and time.time() - LAST_BREAK > KILL_TIME:
 			out("TERMINATE: No breakpoints hit in " + str(KILL_TIME) + " sec...")
 			kill()
 
