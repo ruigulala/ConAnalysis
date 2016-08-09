@@ -17,6 +17,11 @@ for file in $tsan_reports_folder/*; do
 	# Create symlink to tsan report for trigger to read
 	ln -sf $file report.txt
 
+	# Startup script (optional)
+	if [[ -f startup.sh ]]; then
+		sh startup.sh &>/dev/null
+	fi
+
 	# Start lldb through Expect script
 	try expect interface.exp &>/dev/null &
 
@@ -28,6 +33,11 @@ for file in $tsan_reports_folder/*; do
 
 	# Wait for lldb to finish
 	wait $!
+
+	# Shutdown script (optional)
+	if [[ -f shutdown.sh ]]; then
+	sh shutdown.sh &>/dev/null
+	fi
 
 	# In case exit wasn't clean so next run there aren't any errors
 	pkill lldb
