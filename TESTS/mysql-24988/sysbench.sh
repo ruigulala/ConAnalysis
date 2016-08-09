@@ -3,6 +3,9 @@
 # This script will start mysql using the run.sh script, setup sysbench
 # and benchmark mysql with 1000 "complex" transactions.  Please ensure
 # MySQL is not already running before starting this script
+#
+# NOTE: Before running, make sure mysql has a database called 'dbca'
+#       If not, create one using the command `create database dbca;`
 
 set -e
 
