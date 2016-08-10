@@ -212,7 +212,7 @@ def get_addr(frame, filename, line_num):
 		src_line = stream.GetData().split("\n")[0]
 
 		src_line = [src_line]
-		break_chars = [" ", "\n", ",", ";", "(", ")"]
+		break_chars = [" ", "\n", "\t", ",", ";", "(", ")"]
 
 		# Split source line up using break_chars as delimiters
 		for char in break_chars:

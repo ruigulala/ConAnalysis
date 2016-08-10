@@ -18,3 +18,9 @@ sleep 3
 echo "Populating database..."
 sysbench --test=oltp --oltp-table-size=1000000 --mysql-db=dbca \
          --mysql-user=root prepare
+
+# Give Sysbench a little time
+sleep 1
+
+pkill -9 mysql
+
