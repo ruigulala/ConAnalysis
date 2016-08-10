@@ -6,6 +6,12 @@
 # killing the target executable (handled by wrapper.sh)
 
 # Shutdown code starts here
+cd $CONANAL_ROOT/concurrency-exploits/mysql-24988
+
+# Make sure mysqld daemon is running so sysbench can modify dbca
+mysql-install/libexec/mysqld --user=root &
+
+# Cleanup
 sysbench --test=oltp --mysql-db=dbca --mysql-user=root cleanup
 
 pkill mysql
