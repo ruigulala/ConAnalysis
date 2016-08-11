@@ -11,6 +11,9 @@ cd $CONANAL_ROOT/concurrency-exploits/mysql-24988
 # Make sure mysqld daemon is running so sysbench can modify dbca
 mysql-install/libexec/mysqld --user=root &
 
+# Wait for mysql to start up
+sleep 5
+
 # Cleanup
 sysbench --test=oltp --mysql-db=dbca --mysql-user=root cleanup
 

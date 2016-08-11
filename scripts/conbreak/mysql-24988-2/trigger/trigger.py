@@ -8,7 +8,7 @@ import threading
 
 # USER SET GLOBAL VARIABLES
 WAIT_TIME         = 1                 # Timeout (in sec, ie. 0.1 = 100ms), default = 1
-KILL_TIME         = 5                 # Time to wait after last BP until lldb is killed
+KILL_TIME         = 10                # Time to wait after last BP until lldb is killed
 TERM_TIME         = 20                # Timeout for no activity (non-interactive only)
 INTERACTIVE       = 0                 # Default = 1, set to 0 when using wrapper script
 TSAN_REPORT_FILE  = "report.txt"      # File with parsed TSAN report
@@ -152,7 +152,7 @@ def all_bp_hit():
 #		if t.IsSuspended():
 #			c += 1
 #
-#	if c >= 10:
+#	if c >= 8:
 #		res = True
 #	
 #	return res

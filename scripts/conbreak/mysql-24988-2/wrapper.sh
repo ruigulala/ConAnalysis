@@ -19,26 +19,28 @@ for file in $tsan_reports_folder/*; do
 
 	# Startup script (optional)
 	if [[ -f startup.sh ]]; then
-		sh startup.sh &>/dev/null
+		./startup.sh &>/dev/null
 	fi
-
-	echo "Starting lldb..."
 	
 	# Start lldb through Expect script
 	try expect interface.exp &>/dev/null &
+	PID=$!
 
 	# Wait for lldb to start up
 	sleep 5
 
 	# Send bug-triggering input
-	sh benchmark.sh &>/dev/null
+	./benchmark.sh &>/dev/null &
 
 	# Wait for lldb to finish
-	wait $!
+	wait $PID
+
+	# TODO: Is there another way to stop the benchmark after lldb is done??
+	pkill benchmark
 
 	# Shutdown script (optional)
 	if [[ -f shutdown.sh ]]; then
-		sh shutdown.sh &>/dev/null
+		./shutdown.sh &>/dev/null
 	fi
 
 	# In case exit wasn't clean so next run there aren't any errors
@@ -61,5 +63,5 @@ for file in $tsan_reports_folder/*; do
 done
 
 # Cleanup temporary files
-rm 'report.txt'
-rm $lldb_output
+#rm 'report.txt'
+#rm $lldb_output
