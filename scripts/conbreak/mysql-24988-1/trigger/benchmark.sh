@@ -4,18 +4,27 @@
 # and the target executable is ready
 
 # Put your benchmarking / bug-triggering input code here...
-cd scripts
-
-./client1.sh &>/dev/null &
-./client2.sh &>/dev/null &
-
-sleep 5
-
-./client1.sh &>/dev/null &
-./client2.sh &>/dev/null &
-
 trap "pkill client1; pkill client2" TERM
 
-# Wait until TERM signal from wrapper.sh
-wait $!
+cd scripts
+
+COUNT=0
+while [[ $COUNT -lt 5 ]]; do
+	echo "$COUNT"
+
+	./client1.sh &>/dev/null &
+	./client2.sh &>/dev/null &
+
+	sleep 5
+
+	./client1.sh &>/dev/null &
+	./client2.sh &>/dev/null &
+
+	sleep 10
+	
+	let "COUNT++"
+done
+
+pkill client1
+pkill client2
 
