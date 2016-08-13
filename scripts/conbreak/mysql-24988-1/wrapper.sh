@@ -63,5 +63,5 @@ for file in $tsan_reports_folder/*; do
 done
 
 # Cleanup temporary files
-#rm 'report.txt'
-#rm $lldb_output
+rm 'report.txt'
+rm $lldb_output
