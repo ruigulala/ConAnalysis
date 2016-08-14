@@ -52,21 +52,27 @@ then
         echo "You can use mk.sh to automatically build it."
     fi
 
-    valgrind --version
-    if [ $? -ne 0 ]
-    then
-        echo "Error: Please install valgrind before running this script."
-        echo "We strongly recommend using valgrind 3.11."
-    fi
+    #valgrind --version
+    #if [ $? -ne 0 ]
+    #then
+    #    echo "Error: Please install valgrind before running this script."
+    #    echo "We strongly recommend using valgrind 3.11."
+    #fi
     cd $CONANAL_ROOT/TESTS/apache-21287
     # Start valgrind here!
-    valgrind --tool=helgrind --trace-children=yes --read-var-info=yes $CONANAL_ROOT/concurrency-exploits/apache-21287/apache-install/bin/apachectl -k start >| valgrind_latest.output 2>&1 &
+    #valgrind --tool=helgrind --trace-children=yes --read-var-info=yes $CONANAL_ROOT/concurrency-exploits/apache-21287/apache-install/bin/apachectl -k start >| valgrind_latest.output 2>&1 &
     #$CONANAL_ROOT/concurrency-exploits/apache-21287/apache-install/bin/apachectl -k start
-    # Bug triggering input here!
-    httperf --server=127.0.1.1 --port=7000 --uri=/pippo.php?variable=1111 --num-conns=10 --num-calls=10
+    
+	# TSAN flags (set environment variable before running this script)
+    # Just run TSAN (assuming apache server is already compiled with TSAN & clang)
+    env TSAN_OPTIONS="log_path=$CONANAL_ROOT/TESTS/apache-21287/output/tsan" $CONANAL_ROOT/concurrency-exploits/apache-21287/apache-install/bin/apachectl -k start
+
+	# Bug triggering input here!
+    #httperf --server=127.0.1.1 --port=7000 --uri=/pippo.php?variable=1111 --num-conns=10 --num-calls=10
+	#ab -n 1000 -c 100 127.0.1.1:7000/pippo.php?variable=88
 fi
 
-if [ "$1" != "no_static_analysis" ]
+if [ "$1" != "no_static_analysis" -a 0 -eq 1 ]
 then
     # Step 3: We'll run our LLVM static analysis pass to analyze the race
     # Use inotify to monitor any new files within the folder

@@ -52,31 +52,28 @@ then
         echo "You can use mk.sh to automatically build it."
     fi
 
-    valgrind --version
-    if [ $? -ne 0 ]
-    then
-        echo "Error: Please install valgrind before running this script."
-        echo "We strongly recommend using valgrind 3.11."
-    fi
     # Set up databases
-    mysql-install/bin/mysql_install_db --user=root
-    mysql-install/libexec/mysqld --user=root &
+    echo "Setting up databases..."
+    env TSAN_OPTIONS="log_path=$CONANAL_ROOT/TESTS/mysql-24988/output/tsan" mysql-install/bin/mysql_install_db --user=root
+    env TSAN_OPTIONS="log_path=$CONANAL_ROOT/TESTS/mysql-24988/output/tsan" mysql-install/libexec/mysqld --user=root &
     sleep 5
-    mysql-install/bin/mysql -u root < grant.sql
+    env TSAN_OPTIONS="log_path=$CONANAL_ROOT/TESTS/mysql-24988/output/tsan" mysql-install/bin/mysql -u root < $CONANAL_ROOT/TESTS/mysql-24988/grant.sql
     pkill -9 mysql
 
     cd $CONANAL_ROOT/TESTS/mysql-24988
-    # Start valgrind here!
-    valgrind --tool=helgrind --trace-children=yes --read-var-info=yes $CONANAL_ROOT/concurrency-exploits/mysql-24988/mysql-install/libexec/mysqld --user=root >| valgrind_latest.output 2>&1 &
-    sleep 15
+    # Start mysql
+	echo "Starting mysql..."
+    env TSAN_OPTIONS="log_path=$CONANAL_ROOT/TESTS/mysql-24988/output/tsan" $CONANAL_ROOT/concurrency-exploits/mysql-24988/mysql-install/libexec/mysqld --user=root >| mysql_latest.output 2>&1 &
+
+    #sleep 15
 
     # Bug triggering input here!
-    ./client1.sh &
-    sleep 5
-    ./client2.sh
+    #./client1.sh &
+    #sleep 5
+    #./client2.sh
 fi
-
-if [ "$1" != "no_static_analysis" ]
+ 
+if [ "$1" != "no_static_analysis" -a 0 -eq 1 ]
 then
     # Step 3: We'll run our LLVM static analysis pass to analyze the race
 	# Use inotify to monitor any new files within the folder

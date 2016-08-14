@@ -1,0 +1,2 @@
+do_item_get (items.c:622)
+conn_release_items (memcached.c:494)

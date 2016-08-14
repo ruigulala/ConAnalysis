@@ -1,0 +1,2 @@
+conn_new (memcached.c:453)
+conn_release_items (memcached.c:500)

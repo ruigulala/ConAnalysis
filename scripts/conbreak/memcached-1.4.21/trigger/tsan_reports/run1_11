@@ -1,0 +1,2 @@
+conn_new (memcached.c:461)
+reset_cmd_handler (memcached.c:2258)
