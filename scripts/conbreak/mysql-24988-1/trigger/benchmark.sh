@@ -10,8 +10,6 @@ cd scripts
 
 COUNT=0
 while [[ $COUNT -lt 5 ]]; do
-	echo "$COUNT"
-
 	./client1.sh &>/dev/null &
 	./client2.sh &>/dev/null &
 

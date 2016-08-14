@@ -237,7 +237,7 @@ def get_addr(frame, filename, line_num):
 		# Try to find a variable that matches a token and save its address
 		addrs = []
 		for token in src_line:
-			obj = frame.GetValueForVariablePath(token)
+			obj = frame.GetValueForVariablePath(str(token))
 
 			# Very hacky way to verify extracted variable is valid
 			# TODO: Is there a better way to do this?
