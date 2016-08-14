@@ -52,7 +52,7 @@ if [[ ! -f "attack" ]]; then
 fi
 
 env LD_LIBRARY_PATH="$CONANAL_ROOT/concurrency-exploits/mysql-35589/mysql-install/lib/mysql" \
-    ./attack
+	TSAN_OPTIONS="log_path=$CONANAL_ROOT/TESTS/mysql-35589/output/tsan" ./attack
  
 
 
