@@ -1,0 +1,2 @@
+conn_new (memcached.c:460)
+conn_cleanup (memcached.c:515)

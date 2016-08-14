@@ -1,0 +1,2 @@
+process_verbosity_command (memcached.c:3372)
+conn_new (memcached.c:423)

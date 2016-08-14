@@ -1,0 +1,2 @@
+conn_new (memcached.c:475)
+main (memcached.c:5615)
