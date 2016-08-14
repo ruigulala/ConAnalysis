@@ -38,12 +38,8 @@ fi
 # Set up databases
 echo "Setting up databases..."
 
-DIR="$CONANAL_ROOT/concurrency-exploits/mysql-35589/mysql-install"
 env TSAN_OPTIONS="log_path=$CONANAL_ROOT/TESTS/mysql-35589/output/tsan" \
-    mysql-install/bin/mysql_install_db --basedir=$DIR --user=root
-
-env TSAN_OPTIONS="log_path=$CONANAL_ROOT/TESTS/mysql-35589/output/tsan" \
-    mysql-install/libexec/mysqld --user=root &
+    mysql-install-tsan/libexec/mysqld --skip-grant &
 
 sleep 5
 
