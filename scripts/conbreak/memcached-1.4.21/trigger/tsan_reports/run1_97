@@ -1,2 +1,0 @@
-clock_handler (memcached.c:4729)
-try_read_command (memcached.c:3762)

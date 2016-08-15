@@ -1,2 +1,0 @@
-conn_new (memcached.c:448)
-try_read_network (memcached.c:3830)

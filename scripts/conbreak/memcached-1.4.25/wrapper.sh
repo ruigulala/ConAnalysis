@@ -19,17 +19,24 @@ for file in $tsan_reports_folder/*; do
 
 	# Startup script (optional)
 	if [[ -f startup.sh ]]; then
-		sh startup.sh &>/dev/null
+		./startup.sh &>/dev/null
 	fi
 
 	# Start lldb through Expect script
-	pushd $CONANAL_ROOT/concurrency-exploits/memcached-1.4.21/memcached-1.4.21
-	make test
-	popd
+	try expect interface.exp &>/dev/null &
+
+	# Wait for lldb to start up
+	sleep 5
+
+	# Send bug-triggering input
+	./benchmark.sh &>/dev/null
+
+	# Wait for lldb to finish
+	wait $!
 
 	# Shutdown script (optional)
 	if [[ -f shutdown.sh ]]; then
-		sh shutdown.sh &>/dev/null
+		./shutdown.sh &>/dev/null
 	fi
 
 	# In case exit wasn't clean so next run there aren't any errors

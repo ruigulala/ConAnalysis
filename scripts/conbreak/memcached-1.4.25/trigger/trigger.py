@@ -9,7 +9,7 @@ import threading
 # USER SET GLOBAL VARIABLES
 WAIT_TIME         = 1                 # Timeout (in sec, ie. 0.1 = 100ms), default = 1
 KILL_TIME         = 5                 # Time to wait after last BP until lldb is killed
-TERM_TIME         = 300               # Timeout for no activity (non-interactive only)
+TERM_TIME         = 30                # Timeout for no activity (non-interactive only)
 INTERACTIVE       = 0                 # Default = 1, set to 0 when using wrapper script
 TSAN_REPORT_FILE  = "report.txt"      # File with parsed TSAN report
 ARG_FILE          = "args.txt"        # Arguments for trigger.py and target executable

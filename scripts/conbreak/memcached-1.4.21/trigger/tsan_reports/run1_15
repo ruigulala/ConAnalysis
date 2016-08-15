@@ -1,2 +1,0 @@
-conn_shrink (memcached.c:608)
-conn_new (memcached.c:448)
