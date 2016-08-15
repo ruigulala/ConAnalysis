@@ -46,9 +46,8 @@ sleep 5
 popd
 
 if [[ ! -f "attack" ]]; then
-    clang bug35589.c -fsanitize=thread -g -o attack \
-          -L mysql-install-tsan/lib/mysql -I mysql-install-tsan/include/mysql \
-          -lmysqlclient_r -lz -lpthread
+    clang bug35589.c -g -o attack -L mysql-install-tsan/lib/mysql \
+		  -I mysql-install-tsan/include/mysql -lmysqlclient_r -lz -lpthread
 fi
 
 env LD_LIBRARY_PATH="$CONANAL_ROOT/concurrency-exploits/mysql-35589/mysql-install/lib/mysql" \
