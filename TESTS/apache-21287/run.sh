@@ -59,6 +59,10 @@ then
 
 	# Start benchmark
 	ab -n 1000 -c 100 127.0.1.1:7000/pippo.php?variable=88
+
+	# Kill apache
+	sleep 3
+	pkill httpd
 fi
 
 if [ "$1" != "no_static_analysis" ]
