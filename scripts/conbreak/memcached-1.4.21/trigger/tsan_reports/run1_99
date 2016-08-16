@@ -1,2 +1,0 @@
-conn_new (memcached.c:400)
-process_stats_conns (memcached.c:2755)

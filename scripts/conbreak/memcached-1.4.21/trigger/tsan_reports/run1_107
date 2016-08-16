@@ -1,2 +1,0 @@
-try_read_command (memcached.c:3762)
-process_stats_conns (memcached.c:2767)
