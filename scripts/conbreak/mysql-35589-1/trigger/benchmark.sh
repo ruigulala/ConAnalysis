@@ -6,9 +6,10 @@
 # Put your benchmarking / bug-triggering input code here...
 cd scripts
 
+env LD_LIBRARY_PATH="$CONANAL_ROOT/concurrency-exploits/mysql-35589/mysql-install/lib/mysql" \
+	./attack
 
-
-trap "pkill client1; pkill client2" TERM
+trap "pkill attack" TERM
 
 # Wait until TERM signal from wrapper.sh
 wait $!
