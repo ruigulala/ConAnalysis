@@ -54,8 +54,7 @@ then
 
     cd $CONANAL_ROOT/TESTS/apache-25520
     
-	# TSAN flags (set environment variable before running this script)
-    # Just run TSAN (assuming apache server is already compiled with TSAN & clang)
+	# Start apache w/ tsan output
     env TSAN_OPTIONS="log_path=$CONANAL_ROOT/TESTS/apache-25520/output/tsan" $CONANAL_ROOT/concurrency-exploits/apache-25520/apache-install/bin/apachectl -k start
 
 	# Bug triggering input here
@@ -66,7 +65,7 @@ then
 	pkill httpd
 fi
 
-if [ "$1" != "no_static_analysis" -a 0 -eq 1 ]
+if [ "$1" != "no_static_analysis" ]
 then
     # Step 3: We'll run our LLVM static analysis pass to analyze the race
     # Use inotify to monitor any new files within the folder
