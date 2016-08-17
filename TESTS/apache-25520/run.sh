@@ -59,7 +59,11 @@ then
     env TSAN_OPTIONS="log_path=$CONANAL_ROOT/TESTS/apache-25520/output/tsan" $CONANAL_ROOT/concurrency-exploits/apache-25520/apache-install/bin/apachectl -k start
 
 	# Bug triggering input here
-	#ab -n 1000 -c 100 127.0.0.1:7000/index.html.en
+	ab -n 1000 -c 100 127.0.0.1:7000/index.html.en
+
+	# Kill apache
+	sleep 3
+	pkill httpd
 fi
 
 if [ "$1" != "no_static_analysis" -a 0 -eq 1 ]
