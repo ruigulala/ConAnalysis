@@ -56,24 +56,20 @@ then
     echo "Setting up databases..."
     env TSAN_OPTIONS="log_path=$CONANAL_ROOT/TESTS/mysql-24988/output/tsan" mysql-install/bin/mysql_install_db --user=root
     env TSAN_OPTIONS="log_path=$CONANAL_ROOT/TESTS/mysql-24988/output/tsan" mysql-install/libexec/mysqld --user=root &
+
     sleep 5
+
     env TSAN_OPTIONS="log_path=$CONANAL_ROOT/TESTS/mysql-24988/output/tsan" mysql-install/bin/mysql -u root < $CONANAL_ROOT/TESTS/mysql-24988/grant.sql
     pkill -9 mysql
 
     cd $CONANAL_ROOT/TESTS/mysql-24988
+
     # Start mysql
 	echo "Starting mysql..."
     env TSAN_OPTIONS="log_path=$CONANAL_ROOT/TESTS/mysql-24988/output/tsan" $CONANAL_ROOT/concurrency-exploits/mysql-24988/mysql-install/libexec/mysqld --user=root >| mysql_latest.output 2>&1 &
-
-    #sleep 15
-
-    # Bug triggering input here!
-    #./client1.sh &
-    #sleep 5
-    #./client2.sh
 fi
  
-if [ "$1" != "no_static_analysis" -a 0 -eq 1 ]
+if [ "$1" != "no_static_analysis" ]
 then
     # Step 3: We'll run our LLVM static analysis pass to analyze the race
 	# Use inotify to monitor any new files within the folder
