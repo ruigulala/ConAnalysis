@@ -9,6 +9,10 @@
 
 set -e
 
+echo "Currently not implemented..."
+exit
+
+# Code below from mysql-24988
 cd $CONANAL_ROOT/concurrency-exploits/mysql-35589
 
 echo "Starting MySQL..."
