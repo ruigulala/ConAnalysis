@@ -142,6 +142,14 @@ void SyncLoop::initialize(FuncFileLineList &csinput) {
       abort();
     }
     for (auto listit = insList.begin(); listit != insList.end(); ++listit) {
+      if (csinputidx == 0) {
+        Function * func = &*(((*listit)->getParent())->getParent());
+        writeFuncInstList_.push_back(std::make_pair(&*func, *listit));
+        errs() << "---- ";
+        printInst(*listit);
+        errs() << " ----\n";
+        continue;
+      }
       if (isa<GetElementPtrInst>(*listit)) {
         // This flag checks if the corrupted variable is already added
         // to the head.
@@ -156,10 +164,7 @@ void SyncLoop::initialize(FuncFileLineList &csinput) {
           break;
         Function * func = &*(((*listit)->getParent())->getParent());
         DEBUG(errs() << func->getName() << " contains the above ins\n");
-        if (csinputidx == 0)
-          writeFuncInstList_.push_back(std::make_pair(&*func, *listit));
-        else
-          readFuncInstList_.push_back(std::make_pair(&*func, *listit));
+        readFuncInstList_.push_back(std::make_pair(&*func, *listit));
         finishedVars_.insert(*listit);
         errs() << "---- ";
         printInst(*listit);
@@ -206,10 +211,7 @@ void SyncLoop::initialize(FuncFileLineList &csinput) {
               (!isBitCast && !isPointer && !isa<LoadInst>(*listit)))
             continue;
         }
-        if (csinputidx == 0)
-          writeFuncInstList_.push_back(std::make_pair(&*func, *listit));
-        else
-          readFuncInstList_.push_back(std::make_pair(&*func, *listit));
+        readFuncInstList_.push_back(std::make_pair(&*func, *listit));
         finishedVars_.insert(*listit);
         errs() << "---- ";
         printInst(*listit);
@@ -413,13 +415,17 @@ bool SyncLoop::adhocSyncAnalysis(FuncFileLineList &input, Loop * iL) {
   bool constantWrite = false;
   for (auto cs_itr : writeFuncInstList_) {
     Instruction *I = cs_itr.second;
+    I->print(errs());
+    errs() << "\n";
     if (isa<StoreInst>(I)) {
       if (isa<Constant>(I->getOperand(0)))
         constantWrite = true;
     }
   }
-  if (!constantWrite)
+  if (!constantWrite) {
+    errs() << "!!!! Write side is not constant ! !!!!\n";
     return false;
+  }
   for (auto cs_itr : readFuncInstList_) {
     Function *F = cs_itr.first;
     Instruction *I = cs_itr.second;
@@ -427,7 +433,7 @@ bool SyncLoop::adhocSyncAnalysis(FuncFileLineList &input, Loop * iL) {
     for (auto itr = orderedcorruptedIR_.begin();
         itr != orderedcorruptedIR_.end(); itr++) {
       bool corruptInBr = false;
-      if (isa<ICmpInst>(*itr)) {
+      if (isa<ICmpInst>(*itr) || isa<BinaryOperator>(*itr)) {
         errs() << "==== Corrupted Branch Statement Found ! ====\n";
         F = dyn_cast<Instruction>(*itr)->getParent()->getParent();
         I = dyn_cast<Instruction>(*itr);

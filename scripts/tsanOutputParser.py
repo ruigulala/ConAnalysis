@@ -164,7 +164,7 @@ def runNormalSyncLoop(args):
         elif callStackLine:
             if flagReadStart and flagBlockStart:
                 fileName = os.path.basename(os.path.normpath(callStackLine.group(3)))
-                if fileName == "tsan_interceptors.cc" or fileName == "sanitizer_common_interceptors.inc":
+                if fileName == "tsan_interceptors.cc" or fileName == "sanitizer_common_interceptors.inc" or fileName == "tsan_new_delete.cc":
                     if args.outputtype != "verifier":
                         flagReadStart = False
                         flagBlockStart = False
@@ -175,7 +175,7 @@ def runNormalSyncLoop(args):
                             + "(" + fileName + callStackLine.group(4) + ")\n")
             if flagWriteStart and flagBlockStart:
                 fileName = os.path.basename(os.path.normpath(callStackLine.group(3)))
-                if fileName == "tsan_interceptors.cc" or fileName == "sanitizer_common_interceptors.inc":
+                if fileName == "tsan_interceptors.cc" or fileName == "sanitizer_common_interceptors.inc" or fileName == "tsan_new_delete.cc":
                     if args.outputtype != "verifier":
                         flagWriteStart = False
                         flagBlockStart = False
@@ -255,7 +255,7 @@ def runNormalConAnalysis(args):
         elif callStackLine:
             if flagReadStart and flagBlockStart:
                 fileName = os.path.basename(os.path.normpath(callStackLine.group(3)))
-                if fileName == "tsan_interceptors.cc" or fileName == "sanitizer_common_interceptors.inc":
+                if fileName == "tsan_interceptors.cc" or fileName == "sanitizer_common_interceptors.inc" or fileName == "tsan_new_delete.cc":
                     continue
                 logging.debug('Line ' + str(i) + ": Writing Content")
                 resultList.append(callStackLine.group(1) + " "
