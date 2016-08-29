@@ -126,7 +126,7 @@ $CONANAL_ROOT/build/TESTS/libsafe-cve-1125/final*
 If you want to take a look at the source code of the target application, for example, apache-25520, you can go to concurrency-exploits folder to find the corresponding source code. Notice that some source code will be shown only after ./configure .
 
 ## Future work
-Now you have finished all the required steps. You can enjoy the following hacking work on our project.
-If you've encounted any problems, send an email to Rui Gu(me) at rui.gu3@gmail.com or opening an issue on github.
+Now you have finished all the required steps. You can enjoy the hacking on our project.
+If you've encounted any problems, send an email to Rui Gu at rui.gu3@gmail.com or open an issue on github.
 
 
