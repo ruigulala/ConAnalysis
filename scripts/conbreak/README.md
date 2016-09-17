@@ -1,4 +1,4 @@
-# Trigger -- LLDB Breakpoint Analysis
+# Trigger -- LLDB Data Race Verifier
 ### Description
 Trigger is data race verification tool that leverages LLDB's Python API to perform breakpoint analysis on TSAN race reports.  We aim to provide useful filtered TSAN reports to developers in an efficient and practical manner.  This tool was developed to be used within the OWL framework for detecting and exploiting concurrency bugs in real world C applications.  For more information, please read our paper [here](http://www.nyan.cat/).
 
