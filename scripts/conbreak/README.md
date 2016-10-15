@@ -42,12 +42,12 @@ start_threads (worker.c:1083)
 
 ##### Interactive Mode
 ```
-jason:~/trigger$ ls
-args.txt  benchmark.sh  interface.exp  report.txt  target  trigger.py  tsan_reports
-jason:~/trigger$ lldb target
+jason:~/github/ConAnalysis/scripts/conbreak/mysql-5.7$ ls
+args.txt  lldb_out.txt  log.txt  report.txt  target  trigger  wrapper.sh
+jason:~/github/ConAnalysis/scripts/conbreak/mysql-5.7$ lldb target
 (lldb) target create "target"
 Current executable set to 'target' (x86_64).
-(lldb) command script import trigger.py
+(lldb) command script import trigger/trigger.py
 Setting trigger...
 Setting breakpoints...
 Configuration done!
@@ -85,7 +85,3 @@ Process 20726 stopped
    357      }
 (lldb) 
 ```
-
-
-
-
