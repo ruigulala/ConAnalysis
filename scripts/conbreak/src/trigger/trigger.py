@@ -1,5 +1,4 @@
 #!/usr/bin/python2.7
-
 import lldb
 import sys
 import random
@@ -10,7 +9,7 @@ import threading
 WAIT_TIME         = 1                 # Timeout (in sec, ie. 0.1 = 100ms), default = 1
 KILL_TIME         = 5                 # Time to wait after last BP until lldb is killed
 TERM_TIME         = 20                # Timeout for no activity (non-interactive only)
-INTERACTIVE       = 0                 # Default = 1, set to 0 when using wrapper script
+INTERACTIVE       = 1                 # Default = 1, set to 0 when using wrapper script
 TSAN_REPORT_FILE  = "report.txt"      # File with parsed TSAN report
 ARG_FILE          = "args.txt"        # Arguments for trigger.py and target executable
 OUTPUT_FILENAME   = "lldb_out.txt"    # Output file if INTERACTIVE = 0
@@ -54,6 +53,10 @@ def set_trigger(in_read, in_write):
 
     bp_read = target.BreakpointCreateByLocation(FILE_READ, LINE_NUM_READ)
     bp_write = target.BreakpointCreateByLocation(FILE_WRITE, LINE_NUM_WRITE)
+    print bp_read
+    print bp_write
+    assert bp_read and bp_read.GetNumLocations() == 1, "bp_read failed!"
+    assert bp_write and bp_write.GetNumLocations() == 1, "bp_write failed!"
 
     bp_read.SetScriptCallbackFunction("trigger.read_callback")
     bp_write.SetScriptCallbackFunction("trigger.write_callback")
@@ -61,14 +64,13 @@ def set_trigger(in_read, in_write):
     update_timer()
     timer()
 
-    out("Configuration done!")
+    out("Breakpoint initialization done!")
 
 
 # Output wrapper function
 def out(msg):
     if INTERACTIVE:
         print msg
-        return
 
     print_lock.acquire()
     OUTPUT_FD.write(str(msg) + "\n")
@@ -197,6 +199,9 @@ def release_bp():
 
 # Get address of all variables on line reported by TSAN
 def get_addr(frame, filename, line_num):
+    if not frame:
+        out(" ####### ERROR: Couldn't obtain frame ####### ")
+        kill()
     filespec = lldb.SBFileSpec(filename, False)
     if not filespec.IsValid():
         out(" ####### ERROR: Filespec is invalid ####### ")
@@ -212,9 +217,10 @@ def get_addr(frame, filename, line_num):
         src_line = stream.GetData().split("\n")[0]
 
         src_line = [src_line]
-        break_chars = [" ", "\n", "\t", ",", ";", "(", ")"]
+        break_chars = [" ", "\n", "\t", ",", ";", "(", ")", "="]
 
         # Split source line up using break_chars as delimiters
+        # Split function won't handle consecutive delimiters correctly
         for char in break_chars:
             src_line = [s.split(char) for s in src_line]
             src_line = [item for sublist in src_line for item in sublist]
@@ -237,6 +243,7 @@ def get_addr(frame, filename, line_num):
         # Try to find a variable that matches a token and save its address
         addrs = []
         for token in src_line:
+            # TODO: This function randomly fails at last. Don't know why.
             obj = frame.GetValueForVariablePath(token)
 
             # Very hacky way to verify extracted variable is valid
@@ -246,6 +253,9 @@ def get_addr(frame, filename, line_num):
             # method I haven't really tried is manually searching frame.GetVariables()
             if str(obj.GetAddress()) != "No value":
                 addrs.append(obj.GetAddress().__hex__())
+        if len(addrs) == 0:
+            out("####### ERROR: No variables found! Stop!! #######")
+            exit(1)
     
     except (KeyboardInterrupt, SystemExit):
         raise
@@ -253,10 +263,6 @@ def get_addr(frame, filename, line_num):
     except:
         out("####### ERROR: Unable to extract variable name from source #######")
         out(sys.exc_info()[0])
-        kill()
-
-    if len(addrs) == 0:
-        out("####### ERROR: No variables found #######")
         kill()
 
     return addrs
@@ -294,7 +300,8 @@ def read_callback(frame, bp_loc, dict):
     global STATUS_FOUND
 
     RUNNING = False
-    thread.Suspend()
+    while not thread.Suspend():
+        time.sleep(1)
 
     addrs = get_addr(frame, FILE_READ, LINE_NUM_READ)
 
@@ -347,7 +354,9 @@ def write_callback(frame, bp_loc, dict):
     global RUNNING
 
     RUNNING = False
-    thread.Suspend()
+
+    while not thread.Suspend():
+        time.sleep(1)
 
     addrs = get_addr(frame, FILE_WRITE, LINE_NUM_WRITE)
 
@@ -394,9 +403,9 @@ def __lldb_init_module(debugger, dict):
     with open(ARG_FILE) as f:
         args = f.readline()
 
-    if not INTERACTIVE:
-        global OUTPUT_FD
-        OUTPUT_FD = open(OUTPUT_FILENAME, "w")
+    global OUTPUT_FD
+    OUTPUT_FD = open(OUTPUT_FILENAME, "w")
+    debugger.HandleCommand("log enable -f log.txt lldb api")
 
     # Parse out filename and lineno from parsed tsan report
     with open(TSAN_REPORT_FILE) as f:
@@ -405,7 +414,7 @@ def __lldb_init_module(debugger, dict):
         # "[func_name] (filename:lineno)" -> "filename:lineno"
         filenames = [line.rstrip().split(" ")[1][1:-1] for line in lines]
 
-    out("Setting trigger...")
+    out("Read input done!")
 
     # Setup and start
     set_trigger(filenames[1], filenames[0])
