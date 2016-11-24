@@ -97,7 +97,7 @@ def runOverNight(args):
             elif lineBreak:
                 logging.debug('Line ' + str(i) + ": Line Break")
                 if len(resultList) > 0:
-                    fout = open(args.raceReportOut + str(outFileNo), "w")
+                    fout = open(args.raceReportOut + str(outFileNo) + ".race", "w")
                     outFileNo += 1
                     writeResult2File(fout, resultList)
                     fout.close()
@@ -108,7 +108,7 @@ def runOverNight(args):
                 flagBlockStart = False
                 flagReadStart = False
                 if len(resultList) > 0:
-                    fout = open(args.raceReportOut + str(outFileNo), "w")
+                    fout = open(args.raceReportOut + str(outFileNo) + ".race", "w")
                     outFileNo += 1
                     writeResult2File(fout, resultList)
                     fout.close()
@@ -187,7 +187,7 @@ def runNormalSyncLoop(args):
         elif lineBreak:
             logging.debug('Line ' + str(i) + ": Line Break")
             if len(writeResultList) > 0 and len(readResultList) > 0:
-                fout = open(args.raceReportOut + str(outFileNo), "w")
+                fout = open(args.raceReportOut + str(outFileNo) + ".race", "w")
                 outFileNo += 1
                 writeResult2File(fout, writeResultList)
                 writeResult2File(fout, readResultList)
@@ -208,7 +208,7 @@ def runNormalSyncLoop(args):
             flagReadStart = False
             flagWriteStart = False
             if len(writeResultList) > 0 and len(readResultList) > 0:
-                fout = open(args.raceReportOut + str(outFileNo), "w")
+                fout = open(args.raceReportOut + str(outFileNo) + ".race", "w")
                 outFileNo += 1
                 writeResult2File(fout, writeResultList)
                 writeResult2File(fout, readResultList)
@@ -263,7 +263,7 @@ def runNormalConAnalysis(args):
         elif lineBreak:
             logging.debug('Line ' + str(i) + ": Line Break")
             if len(resultList) > 0:
-                fout = open(args.raceReportOut + str(outFileNo), "w")
+                fout = open(args.raceReportOut + str(outFileNo) + ".race", "w")
                 outFileNo += 1
                 writeResult2File(fout, resultList)
                 fout.close()
@@ -274,7 +274,7 @@ def runNormalConAnalysis(args):
             flagBlockStart = False
             flagReadStart = False
             if len(resultList) > 0:
-                fout = open(args.raceReportOut + str(outFileNo), "w")
+                fout = open(args.raceReportOut + str(outFileNo) + ".race", "w")
                 outFileNo += 1
                 writeResult2File(fout, resultList)
                 fout.close()
