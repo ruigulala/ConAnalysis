@@ -57,89 +57,6 @@ def checkBlockIntegrity(baseIndex, fp):
                 boudaryIndex = i
     return boudaryIndex
 
-def runOverNight(args):
-    baseIndex = 0
-    curIndex = 0
-    outFileNo = 0
-    flagBlockStart = False
-    flagReadStart = False
-
-    try:
-        fp = open(args.raceReportIn, "r")
-    except IOError:
-        sys.stderr.write('Error: Input file does not exist!\n')
-        exit(1)
-
-    resultList = []
-    while True:
-        boudaryIndex = checkBlockIntegrity(baseIndex, fp)
-        logging.debug("End boudary is " + str(boudaryIndex))
-        fp.seek(0)
-        for i, line in enumerate(fp, 1):
-            if i < baseIndex:
-                continue
-            elif i >= boudaryIndex:
-                time.sleep(5)
-                break
-            blockStart = regBlockStart.match(line)
-            blockEnd = regBlockEnd.match(line)
-            readStart = regReadStart.match(line)
-            readEnd = regReadEnd.match(line)
-            callStackLine = regCallStackLine.match(line)
-            lineBreak = regLineBreak.match(line)
-            #racingVar = regRacingVar.match(line)
-            if blockStart:
-                logging.debug('Line ' + str(i) + ": Block Start")
-                flagBlockStart = True
-            elif readStart:
-                logging.debug('Line ' + str(i) + ": Read Start")
-                flagReadStart = True
-                flagBlockStart = True
-            elif readEnd:
-                logging.debug('Line ' + str(i) + ": Read End")
-                flagReadStart = False
-            elif callStackLine:
-                if flagReadStart and flagBlockStart:
-                    if callStackLine.group(2) != "mythread_wrapper":
-                        logging.debug('Line ' + str(i) + ": Writing Content")
-                        resultList.append(callStackLine.group(2) + " "
-                                + callStackLine.group(4) + "\n")
-                    else:
-                        flagReadStart = False
-            # We don't handle racing variable for now.
-            #elif racingVar:
-                #logging.debug('Line ' + str(i) + ": Racing Variable")
-                #if len(resultList) > 0:
-                    #fout = open(args.raceReportOut + str(outFileNo), "w")
-                    #flagReadStart = False
-                    #writeResult2File(fout, resultList)
-                    #fout.close()
-                    #del resultList[:]
-                #flagBlockStart = False
-                #flagReadStart = False
-            elif lineBreak:
-                logging.debug('Line ' + str(i) + ": Line Break")
-                if len(resultList) > 0:
-                    fout = open(args.raceReportOut + str(outFileNo), "w")
-                    outFileNo += 1
-                    writeResult2File(fout, resultList)
-                    fout.close()
-                    del resultList[:]
-                flagReadStart = False
-            elif blockEnd:
-                logging.debug('Line ' + str(i) + ": Block Ends")
-                flagBlockStart = False
-                flagReadStart = False
-                if len(resultList) > 0:
-                    fout = open(args.raceReportOut + str(outFileNo), "w")
-                    outFileNo += 1
-                    writeResult2File(fout, resultList)
-                    fout.close()
-                    del resultList[:]
-        if not flagBlockStart and not flagReadStart:
-            baseIndex = boudaryIndex
-    fp.close()
-
 def runNormalSyncLoop(args):
     baseIndex = 0
     curIndex = 0
@@ -155,11 +72,14 @@ def runNormalSyncLoop(args):
         exit(1)
 
     writeResultList = []
+    writeResultList2 = []
     readResultList = []
 
     boudaryIndex = checkBlockIntegrity(baseIndex, fp)
     logging.debug("End boudary is " + str(boudaryIndex))
     fp.seek(0)
+    pendingWriteFlag = False
+
     for i, line in enumerate(fp, 1):
         if i < baseIndex:
             continue
@@ -191,6 +111,7 @@ def runNormalSyncLoop(args):
         elif readEnd:
             logging.debug('Line ' + str(i) + ": Read End")
             flagReadStart = False
+            flagWriteStart = False
         elif callStackLine:
             logging.debug('Line ' + str(i) + ": Call Stack Line")
             if flagReadStart and flagBlockStart:
@@ -207,6 +128,10 @@ def runNormalSyncLoop(args):
                         logging.debug('Line ' + str(i) + ": Writing Content")
                         writeResultList.append(callStackLine.group(2) + " "
                                 + callStackLine.group(4) + "\n")
+                    elif len(writeResultList) > 0 and pendingWriteFlag and len(writeResultList2) == 0:
+                        logging.debug('Line ' + str(i) + ": Writing Content")
+                        writeResultList2.append(callStackLine.group(2) + " "
+                                + callStackLine.group(4) + "\n")
                 else:
                     flagWriteStart = False
         # We don't handle racing variable for now.
@@ -222,28 +147,31 @@ def runNormalSyncLoop(args):
             #flagReadStart = False
         elif lineBreak:
             logging.debug('Line ' + str(i) + ": Line Break")
-            if len(writeResultList) > 0 and len(readResultList) > 0:
-                fout = open(args.raceReportOut + str(outFileNo) + ".race", "w")
-                outFileNo += 1
-                writeResult2File(fout, writeResultList)
-                writeResult2File(fout, readResultList)
-                fout.close()
-                del writeResultList[:]
-                del readResultList[:]
+            if len(writeResultList) > 0:
+                if len(readResultList) > 0:
+                    fout = open(args.raceReportOut + str(outFileNo) + ".race", "w")
+                    outFileNo += 1
+                    pendingWriteFlag = False
+                    writeResult2File(fout, writeResultList)
+                    writeResult2File(fout, readResultList)
+                    fout.close()
+                    logging.debug('Line ' + str(i) + ": Flush to file")
+                    del writeResultList[:]
+                    del readResultList[:]
+                elif len(writeResultList2) > 0:
+                    fout = open(args.raceReportOut + str(outFileNo) + ".race", "w")
+                    outFileNo += 1
+                    pendingWriteFlag = False
+                    writeResult2File(fout, writeResultList)
+                    writeResult2File(fout, writeResultList2)
+                    fout.close()
+                    logging.debug('Line ' + str(i) + ": Flush to file")
+                    del writeResultList[:]
+                    del writeResultList2[:]
+                else:
+                    pendingWriteFlag = True
             flagReadStart = False
             flagWriteStart = False
-        #elif blockEnd:
-        #    logging.debug('Line ' + str(i) + ": Block Ends")
-        #    flagBlockStart = False
-        #    flagReadStart = False
-        #    if len(writeResultList) > 0 and len(readResultList) > 0:
-        #        fout = open(args.raceReportOut + str(outFileNo), "w")
-        #        outFileNo += 1
-        #        writeResult2File(fout, writeResultList)
-        #        writeResult2File(fout, readResultList)
-        #        fout.close()
-        #        del writeResultList[:]
-        #        del readResultList[:]
     fp.close()
 
 def main(args):
